@@ -23,8 +23,9 @@ from policy.schemas import PolicyFlag, PolicyAction, RiskCategory
 
 logger = logging.getLogger("policy.engine")
 
-_CONSTITUTION_PATH = Path("config/constitution.yaml")
-_FAILURE_MODES_PATH = Path("config/failure_modes.yaml")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent  # policy/engine.py -> policy/ -> project root
+_CONSTITUTION_PATH = _PROJECT_ROOT / "config" / "constitution.yaml"
+_FAILURE_MODES_PATH = _PROJECT_ROOT / "config" / "failure_modes.yaml"
 
 _ACTION_SEVERITY = {
     PolicyAction.ALLOW: 0,
