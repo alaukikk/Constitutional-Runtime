@@ -1,21 +1,37 @@
-fastapi          — the web framework that powers api/main.py (handles incoming requests)
-uvicorn          — the server that actually runs the FastAPI app
-pydantic         — defines and validates the data shapes in policy/schemas.py
-pyyaml           — reads constitution.yaml and failure_modes.yaml
-python-dotenv    — loads secrets/settings from a .env file into api/settings.py
+# fastapi: the web framework that powers api/main.py (handles incoming requests)
+fastapi
+# uvicorn: the server that actually runs the FastAPI app
+uvicorn
+# pydantic: defines and validates the data shapes in policy/schemas.py
+pydantic
+# pyyaml: reads constitution.yaml and failure_modes.yaml
+pyyaml
+# python-dotenv: loads secrets/settings from a .env file into api/settings.py
+python-dotenv
 
-redis            — powers tiers/cache_lookup.py (the "have we answered this before" tier)
-sqlalchemy       — talks to the database for logging/audit_log.py
-psycopg2-binary  — lets sqlalchemy actually connect to Postgres
+# redis: powers tiers/cache_lookup.py (the "have we answered this before" tier)
+redis
+# sqlalchemy: talks to the database for logging/audit_log.py
+sqlalchemy
+# psycopg2-binary: lets sqlalchemy actually connect to Postgres
+psycopg2-binary
 
-sentence-transformers — turns text into embeddings for triage/classifier.py
-scikit-learn     — powers the small, cheap classifier in tiers/small_classifier.py
+# sentence-transformers: turns text into embeddings for triage/classifier.py
+sentence-transformers
+# scikit-learn: powers the small, cheap classifier in tiers/small_classifier.py
+scikit-learn
 
-anthropic        — SDK for calling Claude models in llm/gateway.py
-openai           — SDK for calling OpenAI models, if you're routing to more than one provider
-httpx            — makes HTTP requests where you're not using a model SDK directly
+# anthropic: SDK for calling Claude models in llm/gateway.py
+anthropic
+# openai: SDK for calling OpenAI models, if you're routing to more than one provider
+openai
+# httpx: makes HTTP requests where you're not using a model SDK directly
+httpx
 
-prometheus-client — feeds numbers into logging/metrics.py for tracking over time
+# prometheus-client: feeds numbers into logging/metrics.py for tracking over time
+prometheus-client
 
-pytest           — runs everything in tests/
-pytest-mock      — lets tests fake out modules they depend on but aren't testing directly
+# pytest: runs everything in tests/
+pytest
+# pytest-mock: lets tests fake out modules they depend on but aren't testing directly
+pytest-mock
