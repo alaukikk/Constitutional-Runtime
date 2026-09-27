@@ -13,16 +13,11 @@ interface/human_checkpoint.py doesn't exist yet, so that requirement cannot
 be satisfied -- meaning execution must not proceed, per the spec's own
 wording. process_request() therefore BLOCKS REQUIRE_HUMAN requests until
 the real checkpoint is implemented (Sprint 4+), rather than answering
-anyway with just a log note. A log note documents a gap; it doesn't close
-it, and NIST's automation-bias category (which this component traces to
-per RESEARCH_TRACEABILITY.md) is precisely about not letting a pipeline
-proceed just because it technically can.
+anyway with just a log note.
 
 Design note: the actual pipeline logic lives in process_request(), a plain
 function with no FastAPI/pydantic dependency. The FastAPI route below is a
-thin wrapper around it. This keeps the business logic testable on its own
-(no server needed to exercise it) and is good separation of concerns
-regardless of any particular testing environment's constraints.
+thin wrapper around it.
 """
 from __future__ import annotations
 import uuid
@@ -117,15 +112,22 @@ def process_request(text: str, session_id: str | None = None) -> PipelineResult:
         )
 
     # --- Stage 3/5 ---
+    tier_used = None
+    result_text = None
+    for tier, fn in _TIER_LADDER:
+        candidate = fn(normalized)
+        if candidate is not None:
+            tier_used, result_text = tier, candidate
+            break
+
     if result_text is None:
         tier_used = MethodTier.LLM_LOW_REASONING
         result_text = call_llm(normalized)
         store_cache_entry(normalized, result_text)
     elif tier_used != MethodTier.CACHE:
         # Populate the cache for next exact repeat. Don't re-store a value
-        # that was ITSELF a cache hit -- that would just refresh its TTL for
-        # no reason, and (more importantly) would be misleading in a future
-        # audit trail read as "written after a fresh computation."
+        # that was ITSELF a cache hit -- that would just refresh its TTL
+        # for no reason.
         store_cache_entry(normalized, result_text)
 
     # --- Stage 7 (partial -- audit_log.py is the Sprint 1 subset schema) ---
@@ -167,6 +169,4 @@ try:
         return {"status": "ok"}
 
 except ImportError:
-    # fastapi/pydantic not installed in this environment -- process_request()
-    # is still fully usable and testable on its own.
     app = None
