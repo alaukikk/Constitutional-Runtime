@@ -3,7 +3,10 @@
 Maps `ARCHITECTURE.md` → modules → sprint → tests → experiments →
 capstone evaluation. This is the living tracker; `ARCHITECTURE.md`
 itself stays frozen while this document's "status" columns update
-sprint by sprint.
+sprint by sprint.  
+
+
+Audit schema rollout: audit/audit_log.py grows additively. ARCHITECTURE.md's schema is the target; this plan owns the timing. Sprint 3: stage0_screen_result, session_state_snapshot, estimated_cost. Sprint 4: alternatives_considered, feedforward_shown, user_confirmed, actual_cost. Sprint 5: validation_result, escalations, human_checkpoint_triggered, final_outcome. Sprint 6: verify the full schema is present.
 
 ---
 
