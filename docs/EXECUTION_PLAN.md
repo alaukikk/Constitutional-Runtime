@@ -20,7 +20,7 @@ itself stays frozen while this document's status updates sprint by sprint.
 | `guardrails/injection_screen.py` | Stage 0 | ✅ Done (basic regex) |
 | `policy/engine.py`, `config/constitution.yaml`, `config/failure_modes.yaml` | Stage 1 | ✅ Done (keyword-based) |
 | `tiers/*.py` | Stage 3/5 | ✅ Done (stubs — all return `None` except LLM tier, which fakes a response) |
-| `cost/model_registry.py` | Stage 3 (data only) | ✅ Done (fake placeholder data) |
+| `cost/model_registry.py` | Stage 3 (data only) | ✅ Done (placeholder catalog) |
 | `audit/audit_log.py` | Stage 7 (partial schema) | ✅ Done (subset of full schema) |
 | `api/main.py` | Wiring | ✅ Done (security checkpoint was initially a placeholder; Sprint 2 wiring now runs Stage 0/1 before the tier ladder) |
 
@@ -49,60 +49,58 @@ every stub indiscriminately.
 
 **Verification:** the final local Sprint 2 run reported **113 tests passed, 0 failures in 1.50 seconds** after fixing defects exposed by the initial run.
 
-**Important integration boundary:** `triage/classifier.py` exists and is tested, but the current `api/main.py` live tier ladder does **not** call it yet. The live path is still cache → deterministic → small-classifier stub → RAG stub → LLM. Full classifier-driven graduated routing remains scheduled for Sprint 4.
+**Important integration boundary:** `triage/classifier.py` exists and is tested, but the current `api/main.py` live tier ladder does **not** call it yet. Full classifier-driven graduated routing remains scheduled for Sprint 4.
 
-**Still deliberately deferred:** Stage 2 (session), Stage 4 (feedforward), Stage 6 (validator), real cost estimation/model selection, repair routing, governance, bias monitoring, modality routing, and multi-provider LLM integration.
-
----
-
-## Sprint 3 — Session context + real cost accounting (IN PROGRESS / NOT YET COMMITTED TO `main`)
-
-**Goal:** close the multi-turn blindness gap and replace placeholder cost data with a
-real cost model before expanding the classifier/routing surface.
-
-### Planned scope
-
-- `session/session_state.py` — cumulative risk, cumulative cost, turn count, and monotonic constraints; session context may only tighten Stage 0/1 decisions.
-- `cost/estimator.py` — real per-tier estimates for energy/dollars/latency.
-- `tiers/model_selector.py` — model selection across candidate models based on cost/capability/latency, separate from the call-execution module.
-- Wiring pass — connect session state to the live request path and make blocked turns count toward the session state.
-- Audit rollout — Sprint 3 adds `stage0_screen_result`, `session_state_snapshot`, and `estimated_cost` to the audit record; later fields roll out in Sprints 4–5, with full-schema verification in Sprint 6.
-
-### History-derived implementation status
-
-The Claude Sprint 3 history reports that `session/session_state.py` was implemented and its
-14-test suite passed locally. However, the current GitHub `main` snapshot still has an empty
-`session/session_state.py`, `cost/estimator.py`, and `tiers/model_selector.py`. Therefore this
-plan records Sprint 3 as **in progress / not yet committed to `main`**, rather than treating
-local chat-session work as repository completion. See `OPEN_ENDS.md` OI-001 and OI-026.
-
-### Known Sprint 3 blockers / decisions
-
-- Server-controlled or signed session IDs are needed; client-controlled IDs can otherwise rotate history and defeat Stage 2. (`OPEN_ENDS.md` OI-013)
-- Blocked turns must still be recorded before returning. (`OI-014`)
-- The mechanism by which the session floor reaches `RoutingDecision` is still a decision point; the current proposal is to carry it as a `PolicyFlag` without changing the shared schema. (`OI-015`)
-- Energy is required by the frozen Stage 3/audit specification but is absent from the current cost interfaces. A decision is required before `cost/estimator.py` can be completed. (`OI-017`)
-- Session thresholds are placeholders and require calibration against the golden set and real cost data. (`OI-018`)
+**Still deliberately deferred:** Stage 4 (feedforward), Stage 6 (validator), real graduated routing, repair routing, governance, bias monitoring, modality routing, multi-provider LLM integration, and the Sprint 3 session/cost/model-selection slice that is now completed below.
 
 ---
 
-## Sprint 4 — Feedforward + graduated tier ladder
+## Sprint 3 — Session context + real cost accounting (COMPLETE)
 
-- `interface/feedforward.py` (Stage 4) — hard gate before high-cost/high-stakes execution
-- `triage/decision.py` expanded into the full graduated ladder (cache → deterministic → small classifier → RAG → LLM low/high reasoning)
-- `tiers/small_classifier.py`, `tiers/rag_small_model.py` → real
-- Integrate the classifier into the live request path; this is intentionally deferred from Sprint 2 rather than retroactively claiming it was live.
+**Goal:** close the multi-turn blindness gap and replace placeholder cost handling with an explicit cost-estimation/model-selection layer before expanding the classifier/routing surface.
 
-**Test:** confirm every routing decision in the audit log carries a real cost estimate; small user study on feedforward's effect on scrutiny (informal pilot, not the full capstone experiment yet).
+### Completed scope
+
+- `session/session_state.py` — cumulative risk, cumulative cost, turn count, monotonic session constraints, immutable snapshots, and concurrency-safe in-memory session storage. Session context may only tighten Stage 1 decisions.
+- `cost/estimator.py` — per-tier/model estimates for energy, dollars, latency, token usage, runtime overhead, and uncertainty ranges; assumptions are kept explicit where empirical anchors are not yet available.
+- `tiers/model_selector.py` — model selection across candidate models using capability floors and an explicit energy or dollar objective, with conservative escalation when no candidate satisfies the floor and auditable alternatives.
+- `api/main.py` — Stage 2 is now in the live request path after Stage 0/1 and before Stage 3/5. Each request is recorded once; Stage 0 blocks are recorded before returning; session constraints can tighten the Stage 1 action; session snapshots and Stage 0 results are carried into the audit record.
+- Audit rollout — Sprint 3 fields `stage0_screen_result` and `session_state_snapshot` are now passed through the live audit path. The cost estimator/model-selection data is available to the routing layer; the remaining full audit-schema rollout continues in later sprints.
+- Sprint 3 tests include the model-selector suite covering capability floors, conservative escalation, objective selection, validation, determinism, and immutable alternatives. Session-state tests cover cumulative risk/cost, monotonic constraints, malformed inputs, concurrency, and snapshot safety.
+
+### Verification / closure
+
+The Sprint 3 implementation is now committed to the GitHub `main` repository, including the session-state, cost-estimator, model-selector, tests, and `api/main.py` integration work. The repository snapshot was reviewed after the final integration update.
+
+**Sprint 3 is therefore closed as an implementation sprint.** Remaining limitations and calibration work are tracked in `OPEN_ENDS.md`; they are not silently treated as completed.
+
+### Deliberate Sprint 3 limitations carried forward
+
+- Session IDs are still caller-supplied/anonymous at this layer. A caller that rotates IDs can bypass accumulated session context; server-issued or signed IDs require an upstream authentication/session boundary and remain open as `OI-013`.
+- The live Stage 2 gate records the current turn with `turn_cost=0.0` because the final execution cost is not known before the gate. This means cumulative-cost thresholding is intentionally approximate until a pre-execution estimate is threaded into the gate; the actual estimator output remains available to the execution/audit path.
+- Session thresholds remain placeholders and require calibration against the golden set and empirical cost data (`OI-018`).
+- Energy anchors/model-catalog values are not yet fully empirical; assumptions and provenance remain explicit in the estimator/model registry (`OI-005`, `OI-017`).
+
+---
+
+## Sprint 4 — Feedforward + graduated tier ladder (NEXT)
+
+- `interface/feedforward.py` (Stage 4) — hard gate before high-cost/high-stakes execution.
+- `triage/decision.py` expanded into the full graduated ladder (cache → deterministic → small classifier → RAG → LLM low/high reasoning).
+- `tiers/small_classifier.py`, `tiers/rag_small_model.py` → real implementations.
+- Integrate the classifier into the live request path; this was intentionally deferred from Sprint 2 rather than retroactively claiming it was live.
+- Resolve the Stage 1 `REQUIRE_HUMAN` path with the human-checkpoint interface where required by the frozen architecture.
+
+**Verification:** confirm every routing decision in the audit log carries the intended cost estimate; run the planned feedforward scrutiny pilot as an implementation-stage study, not the full capstone experiment.
 
 ---
 
 ## Sprint 5 — Escalation, validation, governance
 
-- `escalation/repair_router.py` (cross-cutting) — real stage-to-stage escalation, not just a post-validation loop
-- `validation/validator.py`, `validation/non_llm_checks.py` (Stage 6) — with the "validator is not privileged" rule enforced (if LLM-based, logged/costed identically to primary calls)
-- `policy/governance/change_log.py`, `CODEOWNERS` — enforced on `constitution.yaml` PRs
-- `triage/bias_monitor.py` — first real routing-outcome comparison across phrasing/language
+- `escalation/repair_router.py` (cross-cutting) — real stage-to-stage escalation, not just a post-validation loop.
+- `validation/validator.py`, `validation/non_llm_checks.py` (Stage 6) — with the "validator is not privileged" rule enforced (if LLM-based, logged/costed identically to primary calls).
+- `policy/governance/change_log.py`, `CODEOWNERS` — enforced on `constitution.yaml` PRs.
+- `triage/bias_monitor.py` — first real routing-outcome comparison across phrasing/language.
 
 **Test:** deliberately inject a failure at each stage (bad policy match, failed validation, execution error) and confirm the correct repair/escalation path fires for each.
 
@@ -110,9 +108,9 @@ local chat-session work as repository completion. See `OPEN_ENDS.md` OI-001 and 
 
 ## Sprint 6 — Modality awareness, hardened adversarial testing
 
-- `triage/modality_router.py` — even a minimal "non-text input gets limited/flagged support" is sufficient for this sprint
-- `guardrails/adversarial/router_attack_suite.py`, `classifier_attack_suite.py` — run against the *whole* pipeline, not just Stage 0 in isolation
-- Full audit schema implemented, replacing the Sprint 1 partial version
+- `triage/modality_router.py` — even a minimal "non-text input gets limited/flagged support" is sufficient for this sprint.
+- `guardrails/adversarial/router_attack_suite.py`, `classifier_attack_suite.py` — run against the *whole* pipeline, not just Stage 0 in isolation.
+- Full audit schema implemented, replacing the Sprint 1 partial version.
 
 **Test:** adversarial suite catches known jailbreak/injection payloads; confirm the router/classifier themselves resist the misclassification attacks identified in architecture review.
 
