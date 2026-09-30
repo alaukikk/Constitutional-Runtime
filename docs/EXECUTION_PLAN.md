@@ -77,7 +77,7 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 ### Deliberate Sprint 3 limitations carried forward
 
 - Session IDs are still caller-supplied/anonymous at this layer. A caller that rotates IDs can bypass accumulated session context; server-issued or signed IDs require an upstream authentication/session boundary and remain open as `OI-013`.
-- The live Stage 2 gate records the current turn with `turn_cost=0.0` because the final execution cost is not known before the gate. This means cumulative-cost thresholding is intentionally approximate until a pre-execution estimate is threaded into the gate; the actual estimator output remains available to the execution/audit path.
+- The live Stage 2 gate records the current turn with `turn_cost=0.0` because the final execution cost is not known before the gate. This means cumulative-cost thresholding is intentionally approximate until a pre-execution estimate is threaded into the gate; the actual estimator output remains available to the execution/audit path. This limitation is tracked as `OI-036` in `OPEN_ENDS.md`.
 - Session thresholds remain placeholders and require calibration against the golden set and empirical cost data (`OI-018`).
 - Energy anchors/model-catalog values are not yet fully empirical; assumptions and provenance remain explicit in the estimator/model registry (`OI-005`, `OI-017`).
 
@@ -95,11 +95,11 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Implemented Sprint 4 planner decisions
 
-1. **Confidence is an escalate-only floor.** Category eligibility remains the primary gate. Low confidence may remove the small-classifier and RAG rungs, but must never force a cheaper or less capable route. The default floor is `0.4`, matching the existing classifier default; the current classifier confidence formula bottoms out at `0.55`, so the floor is currently inert and still requires calibration against the golden set.
+1. **Confidence is an escalate-only floor.** Category eligibility remains the primary gate. Low confidence may remove the small-classifier and RAG rungs, but must never force a cheaper or less capable route. The default floor is `0.4`, matching the existing classifier default; the current classifier confidence formula bottoms out at `0.55`, so the floor is currently inert and still requires calibration against the golden set (`OI-029`).
 2. **The deterministic rung is not classifier-gated.** The deterministic solver remains independently eligible and can answer inputs such as `2 + 2` even when the classifier labels the request `UNKNOWN`. It is skipped for `HIGH_STAKES` requests, while its own solver remains self-gating and returns `None` when unsure.
 3. **Classifier failure escalates conservatively.** A classifier exception or invalid return is treated as `UNKNOWN` with confidence `0.0`, cheap classifier/RAG rungs are skipped, and the LLM rung uses the maximum-capability escalation path rather than silently taking a weaker model.
-4. **`LLM_HIGH_REASONING` remains outside the normal Sprint 4 ladder.** It is reserved for explicit repair/escalation in Sprint 5, preserving the distinction between ordinary necessity routing and failure-driven escalation.
-5. **High-stakes LLM routing carries a capability floor of `0.7` in the current planner.** The underlying catalog capability scores remain placeholders and are tracked by `OI-005`.
+4. **`LLM_HIGH_REASONING` remains outside the normal Sprint 4 ladder.** It is reserved for explicit repair/escalation in Sprint 5, preserving the distinction between ordinary necessity routing and failure-driven escalation (`OI-034`).
+5. **High-stakes LLM routing carries a capability floor of `0.7` in the current planner.** The underlying catalog capability scores remain placeholders and are tracked by `OI-005`/`OI-033`.
 
 ### Planner implementation and test coverage
 
@@ -115,12 +115,13 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Sprint 4 findings requiring explicit tracking
 
-- The estimator currently makes **RAG more expensive than a same-model plain LLM call** because the RAG estimate adds retrieval/context overhead (including approximately 1,000 context tokens). RAG therefore remains justified by grounding/capability rather than by an assumption that it is always the lower-energy option. This matters for the eventual `cost/breakeven.py` analysis.
-- `CLASSIFICATION` is currently excluded from `CHEAP_TIER_ELIGIBLE`, so requests classified as `CLASSIFICATION` do not reach the small-classifier rung. The gap is intentionally deferred until the real small-classifier implementation exists; changing eligibility is a routing-policy decision rather than something to silently fix inside the planner.
+- The estimator currently makes **RAG more expensive than a same-model plain LLM call** because the RAG estimate adds retrieval/context overhead (including approximately 1,000 context tokens). RAG therefore remains justified by grounding/capability rather than by an assumption that it is always the lower-energy option. This matters for the eventual `cost/breakeven.py` analysis (`OI-030`).
+- `CLASSIFICATION` is currently excluded from `CHEAP_TIER_ELIGIBLE`, so requests classified as `CLASSIFICATION` do not reach the small-classifier rung. The gap is intentionally deferred until the real small-classifier implementation exists; changing eligibility is a routing-policy decision rather than something to silently fix inside the planner (`OI-031`).
+- The planner intentionally does not duplicate `SessionState` enforcement. `api/main.py` remains responsible for combining the session floor with the Stage 1 action before routing (`OI-037`).
 
 ### Remaining Sprint 4 sequence
 
-1. **Wire `triage/decision.py` into `api/main.py`** after review. Replace the hardcoded `_TIER_LADDER` traversal with `plan.attempt_order`, and use `decision_for(...)` for the audit `RoutingDecision`. Add integration coverage for skip reasons and the resulting audit rationale.
+1. **Wire `triage/decision.py` into `api/main.py`** after review. Replace the hardcoded `_TIER_LADDER` traversal with `plan.attempt_order`, and use `decision_for(...)` for the audit `RoutingDecision`. Add integration coverage for skip reasons and the resulting audit rationale (`OI-032`).
 2. **Implement Stage 4 `interface/feedforward.py`** and the human-checkpoint path required for `REQUIRE_HUMAN` requests.
 3. Continue toward the real `tiers/small_classifier.py` and `tiers/rag_small_model.py` implementations after the planning/wiring contract is stable.
 
