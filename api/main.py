@@ -67,18 +67,21 @@ from tiers.deterministic import try_deterministic
 from tiers.small_classifier import try_small_classifier
 from tiers.rag_small_model import try_rag_small_model
 from tiers.llm_call import call_llm
+from triage.decision import plan_request
 from audit.audit_log import log_decision
 from session.session_state import SessionManager, ANONYMOUS_SESSION, ACTION_ORDER
 
 # Cheapest-first per ARCHITECTURE.md Stage 3 #4. Cache is NOT a bypass of
 # Stage 0/1 -- it's simply first in this ladder, evaluated only after both
 # have already passed (and, as of Sprint 3, after Stage 2 as well).
-_TIER_LADDER = [
-    (MethodTier.CACHE, try_cache_lookup),
-    (MethodTier.DETERMINISTIC, try_deterministic),
-    (MethodTier.SMALL_CLASSIFIER, try_small_classifier),
-    (MethodTier.RAG_SMALL_MODEL, try_rag_small_model),
-]
+# Non-LLM rungs Stage 5 can execute. Which to try, and in what order, is decided
+# by triage/decision.py's plan (Stage 3); the LLM rung is handled inline below.
+_TIER_FUNCS = {
+    MethodTier.CACHE: try_cache_lookup,
+    MethodTier.DETERMINISTIC: try_deterministic,
+    MethodTier.SMALL_CLASSIFIER: try_small_classifier,
+    MethodTier.RAG_SMALL_MODEL: try_rag_small_model,
+}
 
 # Module-level singleton, swappable like tiers.cache_lookup's _client
 # (tests reassign this directly for isolation -- see configure_session_manager).
@@ -183,33 +186,28 @@ def process_request(text: str, session_id: str | None = None) -> PipelineResult:
         )
 
     # --- Stage 3/5 ---
+    plan = plan_request(normalized)
     tier_used = None
     result_text = None
-    for tier, fn in _TIER_LADDER:
-        candidate = fn(normalized)
+    for tier in plan.attempt_order:
+        if tier == MethodTier.LLM_LOW_REASONING:
+            tier_used = tier
+            result_text = call_llm(normalized, model_name=plan.step_for(tier).model_name)
+            break
+        candidate = _TIER_FUNCS[tier](normalized)
         if candidate is not None:
             tier_used, result_text = tier, candidate
             break
-
     if result_text is None:
-        tier_used = MethodTier.LLM_LOW_REASONING
-        result_text = call_llm(normalized)
-        store_cache_entry(normalized, result_text)
-    elif tier_used != MethodTier.CACHE:
-        # Populate the cache for next exact repeat. Don't re-store a value
-        # that was ITSELF a cache hit -- that would just refresh its TTL
-        # for no reason.
+        raise RuntimeError("routing plan had no terminal tier")
+
+    # Populate the cache for the next exact repeat; don't re-store a cache hit.
+    if tier_used != MethodTier.CACHE:
         store_cache_entry(normalized, result_text)
 
-    # --- Stage 7 (partial -- audit_log.py is the Sprint 1 subset schema, now
-    # additionally carrying stage0/session fields per the Sprint 3 rollout) ---
-    log_decision(session_id, RoutingDecision(
-        selected_tier=tier_used,
-        selected_model="stub-model" if tier_used == MethodTier.LLM_LOW_REASONING else None,
-        rationale=f"First tier in cheapest-first ladder to return non-None: {tier_used.value}",
-        cost_estimate=TierCostEstimate(tier=tier_used),
-        policy_flags=flags,
-    ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot())
+    # --- Stage 7 (partial) ---
+    log_decision(session_id, plan.decision_for(tier_used, flags),
+                 stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot())
 
     return PipelineResult(response=result_text, tier_used=tier_used.value, blocked=False, block_reason=None)
 
