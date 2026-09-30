@@ -18,7 +18,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `estimator.py` — estimates energy/dollar/latency/token cost for a request + tier/model, with explicit assumptions and uncertainty
 - `model_registry.py` — model/cost catalog and energy anchors
 
-a`guardrails/` — the security layer
+`guardrails/` — the security layer
 - `adversarial/classifier_attack_suite.py` — test inputs designed to trick the triage classifier
 - `adversarial/router_attack_suite.py` — test inputs designed to trick the router into a weaker path
 - `injection_screen.py` — catches prompt injection / jailbreak attempts before anything else runs
@@ -57,8 +57,8 @@ a`guardrails/` — the security layer
 
 `triage/` — decides what kind of request this is and where it should go
 - `bias_monitor.py` — checks the router isn't treating some phrasing/languages unfairly (Sprint 5)
-- `classifier.py` — figures out what type of request this is (first-pass classifier; full live integration is Sprint 4)
-- `decision.py` — the scoring/routing logic for the graduated request ladder
+- `classifier.py` — first-pass keyword classifier; its output feeds the Stage 3 planner in `decision.py`
+- `decision.py` — the Stage 3 planner: builds the cheapest-first routing plan (cache → deterministic → small classifier → RAG → LLM) with per-rung skip reasons and cost estimates
 - `modality_router.py` — handles text/image/audio requests (Sprint 6)
 - `taxonomy.py` — defines the categories used to classify requests
 
@@ -79,6 +79,12 @@ a`guardrails/` — the security layer
 ## Current sprint status
 
 **Sprint 3 — Session context + real cost accounting: COMPLETE.**
+
+**Sprint 4 — Graduated routing + feedforward: IN PROGRESS.**
+
+The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. Every routing decision in the audit log now carries the selected model, a cost estimate, and the reasons any cheaper rungs were skipped. The full test suite ran at 262 passed after the integration (local run, Python 3.11, Windows).
+
+Still to do in Sprint 4: the `REQUIRE_HUMAN` human-checkpoint path (`interface/human_checkpoint.py`), Stage 4 feedforward (`interface/feedforward.py`), and the real small-classifier and RAG tiers. Remaining limitations are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
 
 The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work. Remaining limitations are tracked explicitly in `docs/OPEN_ENDS.md`; Sprint 4 is the next implementation scope.
 
