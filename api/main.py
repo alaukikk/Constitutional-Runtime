@@ -6,14 +6,9 @@ ladder) -> Stage 7 (audit).
 Stage 4 (feedforward), Stage 6 (validator) are NOT wired here yet -- Sprint
 4-5 scope per docs/EXECUTION_PLAN.md, not a backlog gap in this file.
 
-Known gap, resolved per the letter of the frozen spec rather than a style
-preference: ARCHITECTURE.md Stage 1 #10 says REQUIRE_HUMAN "flows through,
-but Stage 4/7 MUST enforce a human checkpoint before or after execution."
-interface/human_checkpoint.py doesn't exist yet, so that requirement cannot
-be satisfied -- meaning execution must not proceed, per the spec's own
-wording. process_request() therefore BLOCKS REQUIRE_HUMAN requests until
-the real checkpoint is implemented (Sprint 4+), rather than answering
-anyway with just a log note.
+REQUIRE_HUMAN (Stage 1 or session-derived) is satisfied by a confirm-before-execute checkpoint (interface/human_checkpoint.py): 
+the first call returns needs_confirmation plus a single-use token bound to session, exact text, and rule set; 
+the caller re-submits with the token to proceed. A token never overrides a BLOCK.
 
 --- Sprint 3 additions (session context + cost accounting) ---
 
@@ -57,7 +52,9 @@ plain Enum, or a bare string -- it degrades to a lowercased passthrough
 for anything unrecognized rather than crashing.
 """
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from api.settings import settings
+from interface.human_checkpoint import CheckpointManager, confirmation_message
 
 from guardrails.injection_screen import screen_request, ScreenVerdict
 from policy.engine import get_policy_engine
@@ -93,6 +90,15 @@ def configure_session_manager(manager: SessionManager) -> None:
     _session_manager = manager
 
 
+_checkpoint = CheckpointManager(secret=settings.checkpoint_secret or None)
+
+
+
+def configure_checkpoint(manager: CheckpointManager) -> None:
+    global _checkpoint
+    _checkpoint = manager
+
+
 def _screen_verdict_str(verdict) -> str:
     """Normalize a Stage 0 verdict to one of "clean"/"suspicious"/"blocked"
     (or a lowercased passthrough) regardless of how ScreenVerdict is shaped."""
@@ -112,9 +118,11 @@ class PipelineResult:
     tier_used: str
     blocked: bool
     block_reason: str | None
+    needs_confirmation: bool = False
+    confirmation_token: str | None = None
 
 
-def process_request(text: str, session_id: str | None = None) -> PipelineResult:
+def process_request(text: str, session_id: str | None = None, confirmation_token: str | None = None) -> PipelineResult:
     """The actual Stage 0 -> 1 -> 2 -> 3/5 -> 7 pipeline. No FastAPI/pydantic
     dependency, so this can be tested directly without a running server."""
     session_id = session_id or ANONYMOUS_SESSION
@@ -137,13 +145,24 @@ def process_request(text: str, session_id: str | None = None) -> PipelineResult:
 
     normalized = screen_result.normalized_text
 
-    # --- Stage 1 ---
+  # --- Stage 1 ---
     flags, most_severe = get_policy_engine().evaluate(normalized)
+    rule_ids = [f.rule_id for f in flags]
 
-    # --- Stage 2 --- (one call per request; see module docstring on ordering/OI-027)
-    state, constraints = _session_manager.record_turn(session_id, flags, verdict_str, 0.0)
+    # --- Human confirmation (Stage 1 #10 / Stage 4 / Stage 7) ---
+    # A token can only satisfy REQUIRE_HUMAN. It is never examined for a
+    # Stage 1 BLOCK; it is single-use and bound to session + exact text + rules.
+    confirmation = None
+    if confirmation_token is not None and most_severe != PolicyAction.BLOCK:
+        confirmation = _checkpoint.verify_and_consume(confirmation_token, session_id, normalized, rule_ids)
+    confirmed = bool(confirmation and confirmation.ok)
+
+    # --- Stage 2 --- (one call per request; see module docstring on ordering/OI-036)
+    # A consumed token means these flags were already charged when it was issued.
+    state, constraints = _session_manager.record_turn(session_id, [] if confirmed else flags, verdict_str, 0.0)
     combined = most_severe if ACTION_ORDER[most_severe] >= ACTION_ORDER[constraints.min_action] else constraints.min_action
     session_escalated = ACTION_ORDER[combined] > ACTION_ORDER[most_severe]
+
 
     if combined == PolicyAction.BLOCK:
         rationale = (f"Stage 1 blocked request. Triggered rules: {[f.rule_id for f in flags]}"
@@ -160,30 +179,29 @@ def process_request(text: str, session_id: str | None = None) -> PipelineResult:
                                blocked=True,
                                block_reason="session_block" if session_escalated else "policy_gate")
 
-    if combined == PolicyAction.REQUIRE_HUMAN:
-        rationale = (
-            f"Stage 1 flagged REQUIRE_HUMAN ({[f.rule_id for f in flags]}). "
-            f"interface/human_checkpoint.py not yet implemented, so the mandatory "
-            f"human checkpoint (ARCHITECTURE.md Stage 1 #10) cannot be satisfied. "
-            f"Execution blocked rather than proceeding without it."
-        ) if most_severe == PolicyAction.REQUIRE_HUMAN else (
-            f"This message's own Stage 1 result was {most_severe.value}, but session-level "
-            f"escalation raised it to REQUIRE_HUMAN: cumulative session risk/cost crossed the "
-            f"threshold ({', '.join(constraints.reasons)}). Blocked because "
-            f"interface/human_checkpoint.py, required before proceeding, isn't implemented yet."
-        )
+   if combined == PolicyAction.REQUIRE_HUMAN and not confirmed:
+        if most_severe == PolicyAction.REQUIRE_HUMAN:
+            reasons = [f.reason for f in flags if f.action == PolicyAction.REQUIRE_HUMAN]
+            rationale = (f"Stage 1 flagged REQUIRE_HUMAN ({rule_ids}). Execution withheld until the "
+                         f"caller re-submits with a valid human-confirmation token.")
+        else:
+            reasons = list(constraints.reasons)
+            rationale = (f"This message's own Stage 1 result was {most_severe.value}, but session-level "
+                         f"escalation raised it to REQUIRE_HUMAN: cumulative session risk/cost crossed the "
+                         f"threshold ({', '.join(constraints.reasons)}). Execution withheld until the "
+                         f"caller re-submits with a valid human-confirmation token.")
+        if confirmation is not None and not confirmation.ok:
+            rationale += f" Previous confirmation rejected ({confirmation.reason})."
+        token = _checkpoint.issue(session_id, normalized, rule_ids)
         log_decision(session_id, RoutingDecision(
             selected_tier=MethodTier.CACHE, selected_model=None, rationale=rationale,
             cost_estimate=TierCostEstimate(tier=MethodTier.CACHE), policy_flags=flags,
         ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot())
         return PipelineResult(
-            response="This request requires human review before it can be answered, "
-                     "and that review step isn't available yet. Please consult a "
-                     "qualified professional directly for this.",
-            tier_used="blocked_stage1_human_required",
-            blocked=True,
-            block_reason="session_require_human" if session_escalated else "human_checkpoint_unavailable",
-        )
+            response=confirmation_message(reasons, _checkpoint.ttl_seconds),
+            tier_used="blocked_stage1_human_required", blocked=True,
+            block_reason="session_require_human" if session_escalated else "human_confirmation_required",
+            needs_confirmation=True, confirmation_token=token)
 
     # --- Stage 3/5 ---
     plan = plan_request(normalized)
@@ -206,8 +224,12 @@ def process_request(text: str, session_id: str | None = None) -> PipelineResult:
         store_cache_entry(normalized, result_text)
 
     # --- Stage 7 (partial) ---
-    log_decision(session_id, plan.decision_for(tier_used, flags),
-                 stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot())
+     decision = plan.decision_for(tier_used, flags)
+    if confirmed:
+        decision = replace(decision, rationale=f"human confirmation accepted (token {confirmation.nonce}); "
+                                               + decision.rationale)
+    log_decision(session_id, decision, stage0_screen_result=verdict_str,
+                 session_state_snapshot=state.snapshot())
 
     return PipelineResult(response=result_text, tier_used=tier_used.value, blocked=False, block_reason=None)
 
@@ -222,16 +244,19 @@ try:
     class RequestIn(BaseModel):
         text: str
         session_id: str | None = None
+        confirmation_token: str | None = None
 
     class ResponseOut(BaseModel):
         response: str
         tier_used: str
         blocked: bool
         block_reason: str | None = None
+        needs_confirmation: bool = False
+        confirmation_token: str | None = None
 
     @app.post("/v1/respond", response_model=ResponseOut)
     def respond(req: RequestIn) -> ResponseOut:
-        result = process_request(req.text, req.session_id)
+        result = process_request(req.text, req.session_id, req.confirmation_token)
         return ResponseOut(**result.__dict__)
 
     @app.get("/health")
