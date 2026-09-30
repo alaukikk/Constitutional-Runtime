@@ -11,8 +11,7 @@ in `policy/schemas.py`, or the runtime constitution, it is marked
 **Decision needed** and goes through `CONSTITUTION.md` first (Rules 2 and 4).
 
 Created 2026-09-28, during Sprint 3. Updated for Sprint 4 planning and
-cross-checked against the current GitHub `main` snapshot. Local/uncommitted
-Sprint 4 work is explicitly identified rather than treated as repository state.
+cross-checked against the current GitHub `main` snapshot.
 
 ---
 
@@ -78,15 +77,15 @@ Items found while building/reviewing `session/session_state.py` and the Sprint 3
 
 ## Sprint 4 — Graduated routing + feedforward
 
-The Sprint 4 planner is currently a Claude-session draft, not yet committed to `main`. These items therefore track design/calibration questions separately from implementation status.
+The Sprint 4 planner is now committed to `main`; these items track the remaining design, calibration, and integration work rather than treating the planner as uncommitted.
 
 | ID | Item | Severity | Trigger | Status |
 |---|---|---|---|---|
-| OI-027 | **Confidence-floor calibration.** The planned `triage/decision.py` uses an escalate-only confidence floor, default `0.4`, matching `classifier.py`. The current classifier confidence formula bottoms out at `0.55`, so the floor has no effect on today's outputs. Calibrate the threshold against the golden set before treating it as an empirically meaningful gate. | Should-fix | Golden-set calibration / Sprint 7 | Open |
+| OI-027 | **Confidence-floor calibration.** `triage/decision.py` implements an escalate-only confidence floor, default `0.4`, matching `classifier.py`. The current classifier confidence formula bottoms out at `0.55`, so the floor has no effect on today's outputs. Calibrate the threshold against the golden set before treating it as an empirically meaningful gate. | Should-fix | Golden-set calibration / Sprint 7 | Open |
 | OI-028 | **RAG currently costs more than a same-model plain LLM call under the estimator.** Retrieval/context overhead, including roughly 1,000 additional context tokens, makes the RAG estimate higher. This does not invalidate RAG: its purpose is grounding/capability. It does mean the "cheapest adequate" narrative cannot assume RAG is always cheaper than direct LLM inference, and `cost/breakeven.py` must account for the overhead. | Should-fix | Before empirical cost/breakeven analysis | Open |
 | OI-029 | **`CLASSIFICATION` does not currently reach the small-classifier rung.** `CLASSIFICATION` is excluded from `CHEAP_TIER_ELIGIBLE`, even though the small-classifier tier exists. This is intentionally deferred until the real small-classifier is implemented; changing the eligibility rule is a routing-policy decision and should not be silently changed inside the planner. | Decision needed | Before/when the real small classifier is enabled | Open |
-| OI-030 | **Sprint 4 planner decisions need live-path verification.** `plan_request()`/`decision_for()` have been drafted and their development-session tests reportedly pass (36 tests), but neither the module nor its tests are currently on GitHub `main`. The wiring into `api/main.py` and the full regression suite remain to be verified on the repository. | Must-fix | Before Sprint 4 closure | Open |
-| OI-031 | **High-stakes capability floor uses placeholder catalog capability scores.** The current planner design uses a `0.7` capability floor for high-stakes LLM routing, while the underlying catalog scores are still placeholders covered by `OI-005`. | Should-fix | Before empirical model-selection claims | Open |
+| OI-030 | **Sprint 4 planner live-path integration.** `triage/decision.py` and `tests/triage/test_decision.py` are now committed to `main`, but `api/main.py` has not yet been migrated from the hardcoded tier loop to `plan.attempt_order` / `plan.decision_for(...)`. Full integration and regression verification remain outstanding. | Must-fix | Before Sprint 4 closure | Open |
+| OI-031 | **High-stakes capability floor uses placeholder catalog capability scores.** The current planner uses a `0.7` capability floor for high-stakes LLM routing, while the underlying catalog scores are still placeholders covered by `OI-005`. | Should-fix | Before empirical model-selection claims | Open |
 | OI-032 | **`LLM_HIGH_REASONING` is intentionally excluded from the normal Sprint 4 ladder.** It is reserved for explicit repair/escalation in Sprint 5. Any future change that makes it a normal routing rung would need to preserve the distinction between ordinary necessity routing and failure-driven escalation. | — | — | Resolved (Sprint 4 design decision) |
 | OI-033 | **Classifier-confidence note from Sprint 3 is now incorporated into the planner design.** Confidence is treated as an escalate-only floor rather than an independent route selector; category eligibility remains primary. The remaining work is calibration, tracked as `OI-027`. | — | — | Resolved (Sprint 4 design decision) |
 
