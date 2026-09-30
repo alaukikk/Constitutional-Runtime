@@ -60,11 +60,12 @@ def test_deterministic_tier_answers_arithmetic(clean_state):
 def test_require_human_blocks_per_architecture_spec(clean_state):
     result = process_request("I need legal advice about my lease", session_id="s5")
     assert result.blocked is True
-    assert result.block_reason == "human_checkpoint_unavailable"
-    assert "qualified professional" in result.response
+    assert result.needs_confirmation is True
+    assert result.block_reason == "human_confirmation_required"
+    assert result.confirmation_token
     entry = last_log_entry(clean_state)
     assert "HAC-001" in entry["decision"]["rationale"]
-    assert "human_checkpoint.py not yet implemented" in entry["decision"]["rationale"]
+    assert "confirmation token" in entry["decision"]["rationale"]
 
 
 def test_repeat_request_served_from_cache(clean_state):
