@@ -49,7 +49,7 @@ every stub indiscriminately.
 
 **Verification:** the final local Sprint 2 run reported **113 tests passed, 0 failures in 1.50 seconds** after fixing defects exposed by the initial run.
 
-**Important integration boundary:** `triage/classifier.py` exists and is tested, but the current `api/main.py` live tier ladder does **not** call it yet. Full classifier-driven graduated routing remains scheduled for Sprint 4.
+**Important integration boundary:** `triage/classifier.py` exists and is tested, but the current `api/main.py` live tier ladder does **not** call it yet. Full classifier-driven graduated routing remains scheduled for Sprint 4. **This boundary is resolved by the Sprint 4 planner integration described below.**
 
 **Still deliberately deferred:** Stage 4 (feedforward), Stage 6 (validator), real graduated routing, repair routing, governance, bias monitoring, modality routing, multi-provider LLM integration, and the Sprint 3 session/cost/model-selection slice that is now completed below.
 
@@ -89,9 +89,9 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Current Sprint 4 work
 
-`triage/decision.py` and `tests/triage/test_decision.py` are now **committed to GitHub `main`**. The planner is therefore no longer merely a Claude-session draft; it is repository state. The live `api/main.py` integration remains outstanding.
+`triage/decision.py`, `tests/triage/test_decision.py`, `api/main.py`, and `tests/api/test_main_planner_integration.py` now contain the committed Sprint 4 planner and live-path integration. The planner is no longer merely a Claude-session draft; it is repository state, and the API now walks the plan rather than the old hardcoded tier ladder.
 
-`plan_request(text)` is a pure planning step: it does not execute a tier. It produces the complete candidate ladder, an attempt/skip decision for each rung, reasons for skips, and cost estimates. `api/main.py` is intended to walk `plan.attempt_order`; once a tier answers, `plan.decision_for(tier, flags)` produces the auditable `RoutingDecision` rather than having `main.py` reconstruct the decision manually. The implementation records this through `TierStep` reasons and per-tier estimates.
+`plan_request(text)` is a pure planning step: it does not execute a tier. It produces the complete candidate ladder, an attempt/skip decision for each rung, reasons for skips, and cost estimates. `api/main.py` walks `plan.attempt_order`; once a tier answers, `plan.decision_for(tier, flags)` produces the auditable `RoutingDecision` rather than having `main.py` reconstruct the decision manually. The implementation records this through `TierStep` reasons and per-tier estimates.
 
 ### Implemented Sprint 4 planner decisions
 
@@ -111,7 +111,7 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 - `decision_for(...)` — builds the final `RoutingDecision` from the tier that actually answered, carrying the selected model, tier cost estimate, rationale, and policy flags;
 - conservative configuration validation for the confidence floor.
 
-`tests/triage/test_decision.py` covers the golden attempt-order cases, high-stakes capability floor, cache-first/LLM-last invariant, unknown-category behavior, confidence-floor monotonicity and validation, classifier failure, per-step reasons/estimates, audit rationale, `decision_for(...)`, and deterministic planning. The development history reports **36 passing tests** for this planner suite; this documentation records that as reported development-session verification, not as an independently executed result here.
+`tests/triage/test_decision.py` covers the golden attempt-order cases, high-stakes capability floor, cache-first/LLM-last invariant, unknown-category behavior, confidence-floor monotonicity and validation, classifier failure, per-step reasons/estimates, audit rationale, `decision_for(...)`, and deterministic planning. The development history reports **36 passing tests** for this planner suite; this documentation records that as reported development-session verification. The Sprint 4 API integration adds **7 tests** in `tests/api/test_main_planner_integration.py` covering the live planner path and audit integration.
 
 ### Sprint 4 findings requiring explicit tracking
 
@@ -121,11 +121,10 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Remaining Sprint 4 sequence
 
-1. **Wire `triage/decision.py` into `api/main.py`** after review. Replace the hardcoded `_TIER_LADDER` traversal with `plan.attempt_order`, and use `decision_for(...)` for the audit `RoutingDecision`. Add integration coverage for skip reasons and the resulting audit rationale (`OI-032`).
-2. **Implement Stage 4 `interface/feedforward.py`** and the human-checkpoint path required for `REQUIRE_HUMAN` requests.
-3. Continue toward the real `tiers/small_classifier.py` and `tiers/rag_small_model.py` implementations after the planning/wiring contract is stable.
+1. **Implement Stage 4 `interface/feedforward.py`** and the human-checkpoint path required for `REQUIRE_HUMAN` requests.
+2. Continue toward the real `tiers/small_classifier.py` and `tiers/rag_small_model.py` implementations after the planning/wiring contract is stable.
 
-**Verification status:** the planner module and its dedicated tests are now committed on `main`. The reported 36-test result belongs to the development session; the next repository verification point is running `pytest tests/triage/test_decision.py` against the committed files and then the full regression suite after `api/main.py` integration.
+**Verification status:** the planner and API integration are committed on `main`. The development history reports 36 passing dedicated planner tests plus 7 API integration tests. After the integration, the full repository suite was run on **Windows with Python 3.11.7 and reported 262 tests passed**. The 36-test planner result remains documented as development-session history; the 262-test result is the current full-suite verification for the integrated Sprint 4 state.
 
 ---
 
