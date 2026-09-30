@@ -58,6 +58,7 @@ class TierCostEstimate:                          #How much the chosen option wou
     model_name: Optional[str] = None
     est_dollar_cost: float = 0.0
     est_latency_ms: float = 0.0
+    est_energy_wh: float = 0.0                   # Estimated energy in watt-hours (appended last: old positional calls still work) #
 
 
 @dataclass
