@@ -65,7 +65,7 @@ from triage.taxonomy import CHEAP_TIER_ELIGIBLE
 
 log = logging.getLogger(__name__)
 
-# Matches classifier.is_cheap_tier_eligible's default. Uncalibrated (OI-018 style
+# Matches classifier.is_cheap_tier_eligible's default. Uncalibrated (OI-029
 # follow-up: calibrate against the golden set).
 DEFAULT_MIN_CONFIDENCE = 0.4
 
