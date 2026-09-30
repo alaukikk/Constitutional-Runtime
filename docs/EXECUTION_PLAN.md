@@ -89,17 +89,29 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Current Sprint 4 work
 
-`triage/decision.py` and its tests have been drafted in the Claude development session, but **have not yet been committed to GitHub `main`**. The current repository therefore still treats this module as Sprint 4 work in progress; this distinction is intentional so the docs do not claim local/uncommitted work as repository state.
+`triage/decision.py` and `tests/triage/test_decision.py` are now **committed to GitHub `main`**. The planner is therefore no longer merely a Claude-session draft; it is repository state. The live `api/main.py` integration remains outstanding.
 
-The proposed `plan_request(text)` design is a pure planning step: it does not execute a tier. It produces the complete candidate ladder, an attempt/skip decision for each rung, reasons for skips, and cost estimates. `api/main.py` is intended to walk `plan.attempt_order`; once a tier answers, `plan.decision_for(tier, flags)` produces the auditable `RoutingDecision` rather than having `main.py` reconstruct the decision manually.
+`plan_request(text)` is a pure planning step: it does not execute a tier. It produces the complete candidate ladder, an attempt/skip decision for each rung, reasons for skips, and cost estimates. `api/main.py` is intended to walk `plan.attempt_order`; once a tier answers, `plan.decision_for(tier, flags)` produces the auditable `RoutingDecision` rather than having `main.py` reconstruct the decision manually. The implementation records this through `TierStep` reasons and per-tier estimates.
 
-### Sprint 4 routing decisions recorded so far
+### Implemented Sprint 4 planner decisions
 
-1. **Confidence is an escalate-only floor.** Category eligibility remains the primary gate. Low confidence may remove the small-classifier and RAG rungs, but must never force a cheaper or less capable route. The proposed default floor is `0.4`, matching the existing classifier default; the current classifier confidence formula bottoms out at `0.55`, so this floor is currently a future calibration hook rather than an effective gate.
-2. **The deterministic rung is not classifier-gated.** The deterministic solver remains independently eligible and can answer inputs such as `2 + 2` even when the classifier labels the request `UNKNOWN`. It is skipped only where policy/session constraints make deterministic execution impermissible, such as `HIGH_STAKES` handling.
-3. **Classifier failure escalates conservatively.** A classifier exception is treated as `UNKNOWN` and forces the LLM rung to the highest-capability available model floor rather than silently taking a weaker route.
-4. **`LLM_HIGH_REASONING` remains outside the normal Sprint 4 ladder.** It is reserved for the Sprint 5 repair/escalation router as an explicit escalation event, preserving the distinction between normal routing and failure-driven escalation.
-5. **High-stakes LLM routing carries a capability floor of `0.7` in the current design.** The underlying catalog capability scores remain placeholders and are already tracked by `OI-005`.
+1. **Confidence is an escalate-only floor.** Category eligibility remains the primary gate. Low confidence may remove the small-classifier and RAG rungs, but must never force a cheaper or less capable route. The default floor is `0.4`, matching the existing classifier default; the current classifier confidence formula bottoms out at `0.55`, so the floor is currently inert and still requires calibration against the golden set.
+2. **The deterministic rung is not classifier-gated.** The deterministic solver remains independently eligible and can answer inputs such as `2 + 2` even when the classifier labels the request `UNKNOWN`. It is skipped for `HIGH_STAKES` requests, while its own solver remains self-gating and returns `None` when unsure.
+3. **Classifier failure escalates conservatively.** A classifier exception or invalid return is treated as `UNKNOWN` with confidence `0.0`, cheap classifier/RAG rungs are skipped, and the LLM rung uses the maximum-capability escalation path rather than silently taking a weaker model.
+4. **`LLM_HIGH_REASONING` remains outside the normal Sprint 4 ladder.** It is reserved for explicit repair/escalation in Sprint 5, preserving the distinction between ordinary necessity routing and failure-driven escalation.
+5. **High-stakes LLM routing carries a capability floor of `0.7` in the current planner.** The underlying catalog capability scores remain placeholders and are tracked by `OI-005`.
+
+### Planner implementation and test coverage
+
+`triage/decision.py` now contains:
+- `TierStep` — tier, attempt/skip state, reason, estimate, and selected model where applicable;
+- `RoutingPlan` — classification, confidence floor, classifier-failure state, and complete ordered steps;
+- `attempt_order` — the attempted tiers in cheapest-first order;
+- `rationale` — an auditable summary containing every rung's attempt/skip reason;
+- `decision_for(...)` — builds the final `RoutingDecision` from the tier that actually answered, carrying the selected model, tier cost estimate, rationale, and policy flags;
+- conservative configuration validation for the confidence floor.
+
+`tests/triage/test_decision.py` covers the golden attempt-order cases, high-stakes capability floor, cache-first/LLM-last invariant, unknown-category behavior, confidence-floor monotonicity and validation, classifier failure, per-step reasons/estimates, audit rationale, `decision_for(...)`, and deterministic planning. The development history reports **36 passing tests** for this planner suite; this documentation records that as reported development-session verification, not as an independently executed result here.
 
 ### Sprint 4 findings requiring explicit tracking
 
@@ -112,7 +124,7 @@ The proposed `plan_request(text)` design is a pure planning step: it does not ex
 2. **Implement Stage 4 `interface/feedforward.py`** and the human-checkpoint path required for `REQUIRE_HUMAN` requests.
 3. Continue toward the real `tiers/small_classifier.py` and `tiers/rag_small_model.py` implementations after the planning/wiring contract is stable.
 
-**Verification:** the drafted planner tests report **36 passing tests** in the development session. This is not yet a GitHub `main` verification result because the module and tests have not been committed there. The next repository verification point is the `api/main.py` integration and its full regression suite.
+**Verification status:** the planner module and its dedicated tests are now committed on `main`. The reported 36-test result belongs to the development session; the next repository verification point is running `pytest tests/triage/test_decision.py` against the committed files and then the full regression suite after `api/main.py` integration.
 
 ---
 
