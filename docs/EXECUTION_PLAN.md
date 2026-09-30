@@ -70,7 +70,7 @@ every stub indiscriminately.
 
 ### Verification / closure
 
-The Sprint 3 implementation is now committed to the GitHub `main` repository, including the session-state, cost-estimator, model-selector, tests, and `api/main.py` integration work. The repository snapshot was reviewed after the final integration update.
+The Sprint 3 implementation is committed to the GitHub `main` repository, including the session-state, cost-estimator, model-selector, tests, and `api/main.py` integration work. The repository snapshot was reviewed after the final integration update.
 
 **Sprint 3 is therefore closed as an implementation sprint.** Remaining limitations and calibration work are tracked in `OPEN_ENDS.md`; they are not silently treated as completed.
 
@@ -83,21 +83,42 @@ The Sprint 3 implementation is now committed to the GitHub `main` repository, in
 
 ---
 
-## Sprint 4 — Feedforward + graduated tier ladder (NEXT)
+## Sprint 4 — Graduated routing + feedforward (IN PROGRESS)
 
-- `interface/feedforward.py` (Stage 4) — hard gate before high-cost/high-stakes execution.
-- `triage/decision.py` expanded into the full graduated ladder (cache → deterministic → small classifier → RAG → LLM low/high reasoning).
-- `tiers/small_classifier.py`, `tiers/rag_small_model.py` → real implementations.
-- Integrate the classifier into the live request path; this was intentionally deferred from Sprint 2 rather than retroactively claiming it was live.
-- Resolve the Stage 1 `REQUIRE_HUMAN` path with the human-checkpoint interface where required by the frozen architecture.
+**Goal:** replace the current hardcoded tier loop with an auditable planning layer that evaluates the graduated ladder, while adding the Stage 4 feedforward/human-checkpoint boundary.
 
-**Verification:** confirm every routing decision in the audit log carries the intended cost estimate; run the planned feedforward scrutiny pilot as an implementation-stage study, not the full capstone experiment.
+### Current Sprint 4 work
+
+`triage/decision.py` and its tests have been drafted in the Claude development session, but **have not yet been committed to GitHub `main`**. The current repository therefore still treats this module as Sprint 4 work in progress; this distinction is intentional so the docs do not claim local/uncommitted work as repository state.
+
+The proposed `plan_request(text)` design is a pure planning step: it does not execute a tier. It produces the complete candidate ladder, an attempt/skip decision for each rung, reasons for skips, and cost estimates. `api/main.py` is intended to walk `plan.attempt_order`; once a tier answers, `plan.decision_for(tier, flags)` produces the auditable `RoutingDecision` rather than having `main.py` reconstruct the decision manually.
+
+### Sprint 4 routing decisions recorded so far
+
+1. **Confidence is an escalate-only floor.** Category eligibility remains the primary gate. Low confidence may remove the small-classifier and RAG rungs, but must never force a cheaper or less capable route. The proposed default floor is `0.4`, matching the existing classifier default; the current classifier confidence formula bottoms out at `0.55`, so this floor is currently a future calibration hook rather than an effective gate.
+2. **The deterministic rung is not classifier-gated.** The deterministic solver remains independently eligible and can answer inputs such as `2 + 2` even when the classifier labels the request `UNKNOWN`. It is skipped only where policy/session constraints make deterministic execution impermissible, such as `HIGH_STAKES` handling.
+3. **Classifier failure escalates conservatively.** A classifier exception is treated as `UNKNOWN` and forces the LLM rung to the highest-capability available model floor rather than silently taking a weaker route.
+4. **`LLM_HIGH_REASONING` remains outside the normal Sprint 4 ladder.** It is reserved for the Sprint 5 repair/escalation router as an explicit escalation event, preserving the distinction between normal routing and failure-driven escalation.
+5. **High-stakes LLM routing carries a capability floor of `0.7` in the current design.** The underlying catalog capability scores remain placeholders and are already tracked by `OI-005`.
+
+### Sprint 4 findings requiring explicit tracking
+
+- The estimator currently makes **RAG more expensive than a same-model plain LLM call** because the RAG estimate adds retrieval/context overhead (including approximately 1,000 context tokens). RAG therefore remains justified by grounding/capability rather than by an assumption that it is always the lower-energy option. This matters for the eventual `cost/breakeven.py` analysis.
+- `CLASSIFICATION` is currently excluded from `CHEAP_TIER_ELIGIBLE`, so requests classified as `CLASSIFICATION` do not reach the small-classifier rung. The gap is intentionally deferred until the real small-classifier implementation exists; changing eligibility is a routing-policy decision rather than something to silently fix inside the planner.
+
+### Remaining Sprint 4 sequence
+
+1. **Wire `triage/decision.py` into `api/main.py`** after review. Replace the hardcoded `_TIER_LADDER` traversal with `plan.attempt_order`, and use `decision_for(...)` for the audit `RoutingDecision`. Add integration coverage for skip reasons and the resulting audit rationale.
+2. **Implement Stage 4 `interface/feedforward.py`** and the human-checkpoint path required for `REQUIRE_HUMAN` requests.
+3. Continue toward the real `tiers/small_classifier.py` and `tiers/rag_small_model.py` implementations after the planning/wiring contract is stable.
+
+**Verification:** the drafted planner tests report **36 passing tests** in the development session. This is not yet a GitHub `main` verification result because the module and tests have not been committed there. The next repository verification point is the `api/main.py` integration and its full regression suite.
 
 ---
 
 ## Sprint 5 — Escalation, validation, governance
 
-- `escalation/repair_router.py` (cross-cutting) — real stage-to-stage escalation, not just a post-validation loop.
+- `escalation/repair_router.py` (cross-cutting) — real stage-to-stage escalation, not just a post-validation loop. This is also where the deferred `LLM_HIGH_REASONING` escalation path belongs.
 - `validation/validator.py`, `validation/non_llm_checks.py` (Stage 6) — with the "validator is not privileged" rule enforced (if LLM-based, logged/costed identically to primary calls).
 - `policy/governance/change_log.py`, `CODEOWNERS` — enforced on `constitution.yaml` PRs.
 - `triage/bias_monitor.py` — first real routing-outcome comparison across phrasing/language.
@@ -118,8 +139,7 @@ The Sprint 3 implementation is now committed to the GitHub `main` repository, in
 
 ## Sprints 7–8 — The actual experiment
 
-This is where the capstone's central claims get tested, using the
-evaluation framework in `RESEARCH_TRACEABILITY.md`.
+This is where the capstone's central claims get tested, using the evaluation framework in `RESEARCH_TRACEABILITY.md`.
 
 1. **Build the golden test set** properly — the working set accumulated informally across Sprints 2–6, cleaned up and expanded.
 2. **Run `cost/breakeven.py` for real** against accumulated usage data — answer the central research question: at what workload characteristics does the runtime produce net savings after its own overhead?
@@ -129,9 +149,6 @@ evaluation framework in `RESEARCH_TRACEABILITY.md`.
 
 **This is the deliverable that proves the thesis**, not just "the code runs."
 
----
-
 ## Open items
 
-The authoritative unresolved-work register is `OPEN_ENDS.md`. Do not maintain a second
-list here; update the register when new gaps are discovered or old ones are resolved.
+The authoritative unresolved-work register is `OPEN_ENDS.md`. Do not maintain a second list here; update the register when new gaps are discovered or old ones are resolved.
