@@ -15,7 +15,7 @@ Stage 2 ordering: record_turn() is called exactly ONCE per request, right
 after Stage 0/1 and BEFORE Stage 3/5, with turn_cost=0.0. This matches
 ARCHITECTURE.md's stage ordering (Stage 2 gates before Stage 3 ever runs)
 and never wastes an execution on a request session history was going to
-escalate anyway. The tradeoff, logged as OI-036:: SessionState.cumulative_cost
+escalate anyway. The tradeoff, logged as OI-036: SessionState.cumulative_cost
 never sees a turn's REAL dollar cost this sprint, only its risk signal --
 a turn's own cost isn't known until Stage 3/5 runs, and folding it in only
 after the fact would mean gating THIS turn on a total that doesn't include
@@ -25,8 +25,8 @@ the audit log in full via the estimator; only the session's cumulative-cost
 *threshold* is approximate this sprint. Threading a pre-execution cost
 estimate into the gate is future (post-Sprint-3) work.
 
-Combined action: after Stage 1, `combined = max(most_severe, session
-constraints.min_action)` by severity (session may only TIGHTEN, never
+Combined action: after Stage 1, combined = max(most_severe, session
+constraints.min_action) by severity (session may only TIGHTEN, never
 loosen, per the ARCHITECTURE.md core principle). "A Stage-1 BLOCK is 
 already terminal and unaffected by this (REQUIRE_HUMAN is terminal 
 until a valid confirmation token is presented)". The new case this 
