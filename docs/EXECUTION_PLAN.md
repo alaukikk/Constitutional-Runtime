@@ -77,7 +77,7 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 ### Deliberate Sprint 3 limitations carried forward
 
 - Session IDs are still caller-supplied/anonymous at this layer. A caller that rotates IDs can bypass accumulated session context; server-issued or signed IDs require an upstream authentication/session boundary and remain open as `OI-013`. The same identity/session boundary also applies to the human-confirmation token.
-- The live Stage 2 gate records the current turn with `turn_cost=0.0` because the final execution cost is not known before the gate. This means cumulative-cost thresholding is intentionally approximate until a pre-execution estimate is threaded into the gate; the actual estimator output remains available to the execution/audit path. This limitation is tracked as `OI-036` in `OPEN_ENDS.md`.
+- The live Stage 2 gate records the current turn with `turn_cost=0.0` because the final execution cost is not known before the gate. This means cumulative-cost thresholding is intentionally approximate until a pre-execution estimate is threaded into the gate; the actual estimator output remains available to the execution/audit path. Plan estimates now exist after Stage 2, so threading a pre-execution cost into the session gate is feasible (`OI-036`).
 - Session thresholds remain placeholders and require calibration against the golden set and empirical cost data (`OI-018`).
 - Energy anchors/model-catalog values are not yet fully empirical; assumptions and provenance remain explicit in the estimator/model registry (`OI-005`, `OI-017`).
 
@@ -89,7 +89,7 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Current Sprint 4 work
 
-`triage/decision.py`, `tests/triage/test_decision.py`, `api/main.py`, `tests/api/test_main_planner_integration.py`, and `interface/human_checkpoint.py` now contain the committed Sprint 4 planner, live-path integration, and confirm-before-execute checkpoint. The planner is repository state, and the API now walks the plan rather than the old hardcoded tier ladder. `REQUIRE_HUMAN` is now an actual confirm-before-execute gate rather than a placeholder/unavailable path.
+`triage/decision.py`, `tests/triage/test_decision.py`, `api/main.py`, `tests/api/test_main_planner_integration.py`, `interface/human_checkpoint.py`, `interface/feedforward.py`, and the corresponding tests now contain the committed Sprint 4 planner, live-path integration, confirm-before-execute checkpoint, feedforward route/outcome text, and high-cost confirmation gate. The planner is repository state, and the API now walks the plan rather than the old hardcoded tier ladder. `REQUIRE_HUMAN` is an actual confirm-before-execute gate rather than a placeholder/unavailable path.
 
 `plan_request(text)` is a pure planning step: it does not execute a tier. It produces the complete candidate ladder, an attempt/skip decision for each rung, reasons for skips, and cost estimates. `api/main.py` walks `plan.attempt_order`; once a tier answers, `plan.decision_for(tier, flags)` produces the auditable `RoutingDecision` rather than having `main.py` reconstruct the decision manually. The implementation records this through `TierStep` reasons and per-tier estimates.
 
@@ -121,19 +121,28 @@ The human checkpoint uses a signed, single-use confirmation token bound to the s
 
 The current checkpoint deliberately proves an explicit, content-bound second call rather than human identity. First-class audit fields for checkpoint-triggered/confirmed state remain a later audit-schema item (`OI-042`), while the once-only risk-charging behavior is recorded as resolved (`OI-043`).
 
+### Feedforward implementation
+
+`interface/feedforward.py` is now committed and integrated as Stage 4. It provides templated route-preview/outcome text from the pure `RoutingPlan` and a high-cost confirm gate based on worst-case energy/cost estimates. The gate uses `3 Wh` and `$0.05` placeholder limits and evaluates the upper-bound energy estimate across attempted rungs. For gated requests, the route preview is included before execution; for ungated requests, outcome text is attached to the response because the current single-call API has no separate pre-generation preview mode. The feedforward path deliberately hides classifier internals and full planner rationale from the caller while retaining them in the audit trail.
+
+Rendering failures fail open so execution can continue without feedforward text; cost-gate evaluation failures fail closed and require confirmation. The high-cost gate is separate from the classifier's `HIGH_STAKES` category; policy-defined `REQUIRE_HUMAN` remains the human-confirmation mechanism. These design choices and the remaining user-study/measurement gaps are tracked in `OPEN_ENDS.md` (`OI-045`–`OI-050`).
+
+The feedforward implementation adds **31 tests**: 19 unit tests and 12 API integration tests.
+
 ### Sprint 4 findings requiring explicit tracking
 
 - The estimator currently makes **RAG more expensive than a same-model plain LLM call** because the RAG estimate adds retrieval/context overhead (including approximately 1,000 context tokens). RAG therefore remains justified by grounding/capability rather than by an assumption that it is always the lower-energy option. This matters for the eventual `cost/breakeven.py` analysis (`OI-030`).
 - `CLASSIFICATION` is currently excluded from `CHEAP_TIER_ELIGIBLE`, so requests classified as `CLASSIFICATION` do not reach the small-classifier rung. The gap is intentionally deferred until the real small-classifier implementation exists; changing eligibility is a routing-policy decision rather than something to silently fix inside the planner (`OI-031`).
 - The planner intentionally does not duplicate `SessionState` enforcement. `api/main.py` remains responsible for combining the session floor with the Stage 1 action before routing (`OI-037`).
+- The high-cost feedforward limits are deliberately placeholders and require calibration alongside the model/cost catalog before they support empirical claims (`OI-045`).
 
 ### Remaining Sprint 4 sequence
 
-1. **Implement Stage 4 `interface/feedforward.py`** and integrate it with the existing checkpoint/confirmation boundary.
-2. Continue toward the real `tiers/small_classifier.py` and `tiers/rag_small_model.py` implementations after the planning/wiring contract is stable.
-3. Resolve or carry forward any new open items discovered during feedforward and tier integration.
+1. **Implement the real `tiers/small_classifier.py`.** Resolve the `CLASSIFICATION` eligibility question before treating the tier as production-ready (`OI-031`).
+2. **Implement the real `tiers/rag_small_model.py`.** The grounding corpus/model boundary needs an explicit decision before implementation; the existing cost observation remains tracked by `OI-030`.
+3. Resolve or carry forward any new open items discovered during small-classifier/RAG integration.
 
-**Verification status:** the planner, API integration, and human-checkpoint implementation are committed on `main`. The development history reports 36 passing dedicated planner tests plus 7 API integration tests. After the checkpoint integration, the full repository suite was run locally on **Windows with Python 3.11.7 and reported 315 tests passed**. The 36-test planner result remains documented as development-session history; the 315-test result is the current full-suite verification for the checkpoint-integrated Sprint 4 state.
+**Verification status:** the planner, API integration, human-checkpoint implementation, feedforward implementation, and associated tests are committed on `main`. The development history reports 36 passing dedicated planner tests plus 7 API integration tests. After feedforward integration, the full repository suite was run locally on **Windows with Python 3.11.7 and reported 346 tests passed**: 315 prior tests plus 19 feedforward unit tests and 12 feedforward integration tests. The 36-test planner result remains documented as development-session history; the 346-test result is the current full-suite verification for the feedforward-integrated Sprint 4 state.
 
 ---
 
@@ -154,8 +163,6 @@ The current checkpoint deliberately proves an explicit, content-bound second cal
 
 **Test:** adversarial suite catches known jailbreak/injection payloads; confirm the router/classifier themselves resist the misclassification attacks identified in architecture review.
 
----
-
 ## Sprints 7–8 — The actual experiment
 
 This is where the capstone's central claims get tested, using the evaluation framework in `RESEARCH_TRACEABILITY.md`.
@@ -170,4 +177,4 @@ This is where the capstone's central claims get tested, using the evaluation fra
 
 ## Open items
 
-The authoritative unresolved-work register is `OPEN_ENDS.md`. Do not maintain a second list here; update the register when new gaps are discovered or old ones are resolved.
+The authoritative unresolved-work register is `OPEN_ENDS.md`. Do not maintain a second list here; update the register when new gaps are discovered or old ones resolved.
