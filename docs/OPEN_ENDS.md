@@ -62,7 +62,7 @@ Items found while building/reviewing `session/session_state.py` and the Sprint 3
 
 | ID | Item | Severity | Trigger | Status |
 |---|---|---|---|---|
-| OI-013 | **Session ID rotation.** If clients choose their own session ID, they can restart with a clean history on every request and bypass Stage 2. Fix: server-issued or signed session IDs at an upstream authentication/session boundary, plus an end-to-end rotation attack test. | Must-fix | Before any red-team / before load-bearing deployment | Open |
+| OI-013 | **Session ID rotation.** If clients choose their own session ID, they can restart with a clean history on every request and bypass Stage 2. Fix: server-issued or signed session IDs at an upstream authentication/session boundary, plus an end-to-end rotation attack test. The same upstream identity/session binding is also required for the human-confirmation token: the token proves a correctly signed, content-bound second call, but not that a human made it. | Must-fix | Before any red-team / before load-bearing deployment | Open |
 | OI-014 | **Blocked turns must still be recorded.** `api/main.py` now records Stage 0 blocks before returning, and Stage 1/session-terminal paths are recorded before returning. | — | — | Resolved (Sprint 3 wiring) |
 | OI-015 | **How the session floor reaches `RoutingDecision`.** The live implementation combines Stage 1's action with `SessionConstraints.min_action` using the existing action-severity ordering, so session context can tighten but never loosen the decision. No shared schema change was required. | — | — | Resolved (Sprint 3 wiring) |
 | OI-016 | **Wire `record_turn` into the request path and run the multi-turn scenario for real.** `api/main.py` now records each request once before Stage 3/5; the Stage 0 block path records before returning; session escalation paths are terminal before execution. | — | — | Resolved (Sprint 3 wiring) |
@@ -81,7 +81,7 @@ Items found while building/reviewing `session/session_state.py` and the Sprint 3
 
 ## Sprint 4 — Graduated routing + feedforward
 
-The Sprint 4 planner and its API integration are now committed to `main`; these items track the remaining design, calibration, verification, and later-sprint work. IDs 029+ are intentionally used because OI-027/OI-028 are historical stable IDs.
+The Sprint 4 planner, API integration, and human-checkpoint path are now committed to `main`; these items track the remaining design, calibration, verification, and later-sprint work. IDs 029+ are intentionally used because OI-027/OI-028 are historical stable IDs.
 
 | ID | Item | Severity | Trigger | Status |
 |---|---|---|---|---|
@@ -96,6 +96,11 @@ The Sprint 4 planner and its API integration are now committed to `main`; these 
 | OI-037 | **Planner/session-state boundary.** The Sprint 4 planner does not independently consume `SessionState`; the current design relies on `api/main.py` to combine the session floor with the Stage 1 action before routing. This avoids duplicating session enforcement inside the planner. | — | — | Resolved (Sprint 4 design decision) |
 | OI-038 | **Planner source-format cleanup.** The committed `triage/decision.py` was observed to have CRLF line endings and a leading blank line. The repository has mixed line endings (including `api/main.py`), so normalize the planner when it is next modified or introduce a repository-wide line-ending convention to keep future diffs clean. | Nice-to-have | Next modification to `triage/decision.py` / repository formatting pass | Open |
 | OI-039 | **Planner/catalog configuration failure behavior.** `plan_request()` can raise when the model catalog is misconfigured rather than silently selecting an unsafe fallback. The current behavior therefore surfaces as a request failure/500 at the API boundary. Record whether this fail-loud behavior should remain the intended operational contract once production error handling is introduced. | Nice-to-have | Before production-facing error handling / API hardening | Open |
+| OI-040 | **Human confirmation token proves an explicit second call, not human identity.** `human_checkpoint.py` provides a signed, single-use token bound to session, exact text, and rule set, but the token alone cannot prove that a human made the confirming call. The remaining identity/authentication boundary is the same gap as `OI-013`. | Must-fix | Before any red-team / load-bearing deployment | Open |
+| OI-041 | **Checkpoint spent-token store and ephemeral fallback secret are per-process.** The used-token nonce store is in-memory and the generated fallback signing secret is process-local. This is safe/fail-closed for the current design but does not provide cross-worker or restart persistence. | Nice-to-have | Before multi-worker/load-bearing deployment | Open |
+| OI-042 | **Human-checkpoint audit fields are not yet first-class.** `human_checkpoint_triggered` and `user_confirmed` are not currently dedicated audit-schema fields; the current path records checkpoint outcomes through existing routing/audit information. Promote them to first-class fields when the full audit schema is completed. | Should-fix | Sprint 6 full audit-schema work | Open |
+| OI-043 | **Once-only risk charging for confirmation is explicit.** A consumed confirmation token is treated as satisfying the human-checkpoint requirement and the confirming turn is not charged its Stage 1 flags a second time; this prevents a confirm/re-submit from double-counting the same risk. | — | — | Resolved (Sprint 4 checkpoint design) |
+| OI-044 | **Checkpoint API response contract changed.** `PipelineResult`/API responses now expose `needs_confirmation` and `confirmation_token` for `REQUIRE_HUMAN` responses. The earlier `human_checkpoint_unavailable` reason is retired in favor of the explicit confirmation flow. | — | — | Resolved (Sprint 4 checkpoint integration) |
 
 ## Already scheduled in the plan (not duplicated here)
 
