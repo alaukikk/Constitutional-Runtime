@@ -76,7 +76,7 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Deliberate Sprint 3 limitations carried forward
 
-- Session IDs are still caller-supplied/anonymous at this layer. A caller that rotates IDs can bypass accumulated session context; server-issued or signed IDs require an upstream authentication/session boundary and remain open as `OI-013`.
+- Session IDs are still caller-supplied/anonymous at this layer. A caller that rotates IDs can bypass accumulated session context; server-issued or signed IDs require an upstream authentication/session boundary and remain open as `OI-013`. The same identity/session boundary also applies to the human-confirmation token.
 - The live Stage 2 gate records the current turn with `turn_cost=0.0` because the final execution cost is not known before the gate. This means cumulative-cost thresholding is intentionally approximate until a pre-execution estimate is threaded into the gate; the actual estimator output remains available to the execution/audit path. This limitation is tracked as `OI-036` in `OPEN_ENDS.md`.
 - Session thresholds remain placeholders and require calibration against the golden set and empirical cost data (`OI-018`).
 - Energy anchors/model-catalog values are not yet fully empirical; assumptions and provenance remain explicit in the estimator/model registry (`OI-005`, `OI-017`).
@@ -89,9 +89,11 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Current Sprint 4 work
 
-`triage/decision.py`, `tests/triage/test_decision.py`, `api/main.py`, and `tests/api/test_main_planner_integration.py` now contain the committed Sprint 4 planner and live-path integration. The planner is no longer merely a Claude-session draft; it is repository state, and the API now walks the plan rather than the old hardcoded tier ladder.
+`triage/decision.py`, `tests/triage/test_decision.py`, `api/main.py`, `tests/api/test_main_planner_integration.py`, and `interface/human_checkpoint.py` now contain the committed Sprint 4 planner, live-path integration, and confirm-before-execute checkpoint. The planner is repository state, and the API now walks the plan rather than the old hardcoded tier ladder. `REQUIRE_HUMAN` is now an actual confirm-before-execute gate rather than a placeholder/unavailable path.
 
 `plan_request(text)` is a pure planning step: it does not execute a tier. It produces the complete candidate ladder, an attempt/skip decision for each rung, reasons for skips, and cost estimates. `api/main.py` walks `plan.attempt_order`; once a tier answers, `plan.decision_for(tier, flags)` produces the auditable `RoutingDecision` rather than having `main.py` reconstruct the decision manually. The implementation records this through `TierStep` reasons and per-tier estimates.
+
+The human checkpoint uses a signed, single-use confirmation token bound to the session, exact normalized text, and triggering rule set. The first `REQUIRE_HUMAN` call withholds execution and returns a confirmation token; a confirming call must submit that token with the same request. The token never overrides a BLOCK. Its remaining identity limitation and per-process state are tracked in `OPEN_ENDS.md` (`OI-013`, `OI-040`, `OI-041`).
 
 ### Implemented Sprint 4 planner decisions
 
@@ -113,6 +115,12 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 `tests/triage/test_decision.py` covers the golden attempt-order cases, high-stakes capability floor, cache-first/LLM-last invariant, unknown-category behavior, confidence-floor monotonicity and validation, classifier failure, per-step reasons/estimates, audit rationale, `decision_for(...)`, and deterministic planning. The development history reports **36 passing tests** for this planner suite; this documentation records that as reported development-session verification. The Sprint 4 API integration adds **7 tests** in `tests/api/test_main_planner_integration.py` covering the live planner path and audit integration.
 
+### Human checkpoint implementation
+
+`interface/human_checkpoint.py` now provides the confirm-before-execute gate for `REQUIRE_HUMAN`. Tokens are HMAC-SHA256 signed, bound to session/exact normalized text/rule IDs, time-limited, and single-use with atomic verification/consumption. Verification fails closed on internal errors. The checkpoint is stateless at issuance; only successful nonce consumptions are retained until expiry. `api/main.py` exposes `needs_confirmation` and `confirmation_token` in the response model and no longer uses the retired `human_checkpoint_unavailable` path.
+
+The current checkpoint deliberately proves an explicit, content-bound second call rather than human identity. First-class audit fields for checkpoint-triggered/confirmed state remain a later audit-schema item (`OI-042`), while the once-only risk-charging behavior is recorded as resolved (`OI-043`).
+
 ### Sprint 4 findings requiring explicit tracking
 
 - The estimator currently makes **RAG more expensive than a same-model plain LLM call** because the RAG estimate adds retrieval/context overhead (including approximately 1,000 context tokens). RAG therefore remains justified by grounding/capability rather than by an assumption that it is always the lower-energy option. This matters for the eventual `cost/breakeven.py` analysis (`OI-030`).
@@ -121,10 +129,11 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Remaining Sprint 4 sequence
 
-1. **Implement Stage 4 `interface/feedforward.py`** and the human-checkpoint path required for `REQUIRE_HUMAN` requests.
+1. **Implement Stage 4 `interface/feedforward.py`** and integrate it with the existing checkpoint/confirmation boundary.
 2. Continue toward the real `tiers/small_classifier.py` and `tiers/rag_small_model.py` implementations after the planning/wiring contract is stable.
+3. Resolve or carry forward any new open items discovered during feedforward and tier integration.
 
-**Verification status:** the planner and API integration are committed on `main`. The development history reports 36 passing dedicated planner tests plus 7 API integration tests. After the integration, the full repository suite was run on **Windows with Python 3.11.7 and reported 262 tests passed**. The 36-test planner result remains documented as development-session history; the 262-test result is the current full-suite verification for the integrated Sprint 4 state.
+**Verification status:** the planner, API integration, and human-checkpoint implementation are committed on `main`. The development history reports 36 passing dedicated planner tests plus 7 API integration tests. After the checkpoint integration, the full repository suite was run locally on **Windows with Python 3.11.7 and reported 315 tests passed**. The 36-test planner result remains documented as development-session history; the 315-test result is the current full-suite verification for the checkpoint-integrated Sprint 4 state.
 
 ---
 
@@ -136,8 +145,6 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 - `triage/bias_monitor.py` — first real routing-outcome comparison across phrasing/language.
 
 **Test:** deliberately inject a failure at each stage (bad policy match, failed validation, execution error) and confirm the correct repair/escalation path fires for each.
-
----
 
 ## Sprint 6 — Modality awareness, hardened adversarial testing
 
