@@ -1,4 +1,3 @@
-
 """
 api/main.py — Stage 0 -> Stage 1 -> Stage 2 (session) -> Stage 3/5 (tier
 ladder) -> Stage 7 (audit).
@@ -179,7 +178,7 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
                                blocked=True,
                                block_reason="session_block" if session_escalated else "policy_gate")
 
-   if combined == PolicyAction.REQUIRE_HUMAN and not confirmed:
+    if combined == PolicyAction.REQUIRE_HUMAN and not confirmed:
         if most_severe == PolicyAction.REQUIRE_HUMAN:
             reasons = [f.reason for f in flags if f.action == PolicyAction.REQUIRE_HUMAN]
             rationale = (f"Stage 1 flagged REQUIRE_HUMAN ({rule_ids}). Execution withheld until the "
@@ -224,7 +223,7 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
         store_cache_entry(normalized, result_text)
 
     # --- Stage 7 (partial) ---
-     decision = plan.decision_for(tier_used, flags)
+    decision = plan.decision_for(tier_used, flags)
     if confirmed:
         decision = replace(decision, rationale=f"human confirmation accepted (token {confirmation.nonce}); "
                                                + decision.rationale)

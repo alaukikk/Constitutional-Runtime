@@ -45,6 +45,7 @@ class Settings:
     redis_url: str = field(default_factory=lambda: os.getenv("REDIS_URL", "redis://localhost:6379/0"))
     database_url: str = field(default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///./dev.db"))
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
+    checkpoint_secret: str = field(default_factory=lambda: os.getenv("CHECKPOINT_SECRET", ""))
 
 
 settings = Settings()
