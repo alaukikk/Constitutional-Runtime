@@ -15,7 +15,7 @@ Stage 2 ordering: record_turn() is called exactly ONCE per request, right
 after Stage 0/1 and BEFORE Stage 3/5, with turn_cost=0.0. This matches
 ARCHITECTURE.md's stage ordering (Stage 2 gates before Stage 3 ever runs)
 and never wastes an execution on a request session history was going to
-escalate anyway. The tradeoff, logged as OI-027: SessionState.cumulative_cost
+escalate anyway. The tradeoff, logged as OI-036:: SessionState.cumulative_cost
 never sees a turn's REAL dollar cost this sprint, only its risk signal --
 a turn's own cost isn't known until Stage 3/5 runs, and folding it in only
 after the fact would mean gating THIS turn on a total that doesn't include
@@ -27,12 +27,13 @@ estimate into the gate is future (post-Sprint-3) work.
 
 Combined action: after Stage 1, `combined = max(most_severe, session
 constraints.min_action)` by severity (session may only TIGHTEN, never
-loosen, per the ARCHITECTURE.md core principle). A Stage-1 BLOCK/
-REQUIRE_HUMAN is already terminal and unaffected by this (nothing is more
-severe than BLOCK). The new case this creates is a request Stage 1 alone
-would ALLOW/FLAG, but that session history pushes to REQUIRE_HUMAN/BLOCK --
-new block_reason values "session_require_human" / "session_block" mark this
-distinctly from Stage 1's own "policy_gate" / "human_checkpoint_unavailable".
+loosen, per the ARCHITECTURE.md core principle). "A Stage-1 BLOCK is 
+already terminal and unaffected by this (REQUIRE_HUMAN is terminal 
+until a valid confirmation token is presented)". The new case this 
+creates is a request Stage 1 alone would ALLOW/FLAG, but that session 
+history pushes to REQUIRE_HUMAN/BLOCK -- new block_reason values 
+"session_require_human" / "session_block" mark this distinctly from 
+Stage 1's own "policy_gate" / "human_confirmation_required".
 
 Session ID: an absent session_id now maps to session.session_state's shared
 ANONYMOUS_SESSION bucket instead of a fresh random uuid per call -- the old
@@ -72,6 +73,7 @@ from session.session_state import SessionManager, ANONYMOUS_SESSION, ACTION_ORDE
 # have already passed (and, as of Sprint 3, after Stage 2 as well).
 # Non-LLM rungs Stage 5 can execute. Which to try, and in what order, is decided
 # by triage/decision.py's plan (Stage 3); the LLM rung is handled inline below.
+
 _TIER_FUNCS = {
     MethodTier.CACHE: try_cache_lookup,
     MethodTier.DETERMINISTIC: try_deterministic,
@@ -81,6 +83,7 @@ _TIER_FUNCS = {
 
 # Module-level singleton, swappable like tiers.cache_lookup's _client
 # (tests reassign this directly for isolation -- see configure_session_manager).
+
 _session_manager = SessionManager()
 
 
@@ -144,7 +147,7 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
 
     normalized = screen_result.normalized_text
 
-  # --- Stage 1 ---
+    # --- Stage 1 ---
     flags, most_severe = get_policy_engine().evaluate(normalized)
     rule_ids = [f.rule_id for f in flags]
 
