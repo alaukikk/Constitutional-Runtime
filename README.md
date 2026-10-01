@@ -6,7 +6,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 `api/` — the front door
 - `main.py` — live Stage 0 → Stage 1 → Stage 2 → Stage 3/5 → Stage 7 request pipeline
-- `settings.py` — app-level settings (API keys, ports, env variables)
+- `settings.py` — app-level settings (API keys, ports, checkpoint signing secret, env variables)
 
 `config/` — the rulebook, as data
 - `constitution.yaml` — policy rules (what's allowed, blocked, flagged)
@@ -27,7 +27,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 `interface/` — what the user sees / where human interaction gates live
 - `confidence.py` — shows how reliable a given answer is, so the user knows how much to trust it
 - `feedforward.py` — tells the user what's about to happen before it happens (Sprint 4)
-- `human_checkpoint.py` — the confirmation/review step for high-stakes requests (Sprint 4+)
+- `human_checkpoint.py` — confirm-before-execute gate for `REQUIRE_HUMAN`: single-use, signed tokens bound to session, exact text, and rule set
 
 `llm/` — talks to the actual AI models
 - `gateway.py` — the raw API client (handles auth, retries, request/response format)
@@ -69,7 +69,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 `escalation/`
 - `repair_router.py` — decides what happens when a stage fails — retry, escalate to a bigger tier, or hand to a human (Sprint 5)
 
-`docs/` — project control and research documentation
+docs/ — project control and research documentation
 - `EXECUTION_PLAN.md` — sprint status and implementation plan
 - `OPEN_ENDS.md` — authoritative unresolved-work register
 - `RESEARCH_TRACEABILITY.md` — maps research findings to design decisions and evaluation
@@ -82,11 +82,11 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 **Sprint 4 — Graduated routing + feedforward: IN PROGRESS.**
 
-The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. Every routing decision in the audit log now carries the selected model, a cost estimate, and the reasons any cheaper rungs were skipped. The full test suite ran at 262 passed after the integration (local run, Python 3.11, Windows).
+The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. Every routing decision in the audit log now carries the selected model, a cost estimate, and the reasons any cheaper rungs were skipped. The full test suite ran at 315 passed after the human-checkpoint integration (local run, Python 3.11.7, Windows).
 
-Still to do in Sprint 4: the `REQUIRE_HUMAN` human-checkpoint path (`interface/human_checkpoint.py`), Stage 4 feedforward (`interface/feedforward.py`), and the real small-classifier and RAG tiers. Remaining limitations are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
+Still to do in Sprint 4: Stage 4 feedforward (`interface/feedforward.py`) and the real small-classifier and RAG tiers. Remaining limitations are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
 
-The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work. Remaining limitations are tracked explicitly in `docs/OPEN_ENDS.md`; Sprint 4 is the next implementation scope.
+The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner and human checkpoint. Remaining limitations are tracked explicitly in `docs/OPEN_ENDS.md`; Sprint 4 remains the current implementation scope.
 
 ## Root files
 - `README.md` — project overview and repository map
