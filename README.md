@@ -82,11 +82,13 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 **Sprint 4 — Graduated routing + feedforward: IN PROGRESS.**
 
-The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. The Stage 4 feedforward layer is also committed and integrated, providing templated route/outcome text and a high-cost confirmation gate. The API exposes a `feedforward` response field alongside the confirmation fields where applicable. The full test suite ran at **346 passed** after feedforward integration (local run, Python 3.11.7, Windows).
+The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. The Stage 4 feedforward layer is also committed and integrated, providing templated route/outcome text and a high-cost confirmation gate. The API exposes a `feedforward` response field alongside the confirmation fields where applicable. The small-classifier implementation and retrieval prototype are now also committed; the complete RAG generation path is intentionally not yet implemented.
 
-Still to do in Sprint 4: the real small-classifier and RAG tiers. Remaining limitations and design decisions are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
+The last independently reported full-suite run was **346 passed** after feedforward integration (local run, Python 3.11.7, Windows). The synthetic classifier seed has since been added to `main`, but no CI run is attached to that commit, so a fresh full-suite result is still pending.
 
-The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, and feedforward/cost-gate integration. Remaining limitations are tracked explicitly in `docs/OPEN_ENDS.md`; Sprint 4 remains the current implementation scope.
+Still open in Sprint 4 are the `CLASSIFICATION` eligibility decision, classifier calibration/evaluation, the complete RAG path, empirical resource measurements, and the remaining feedforward/user-study decisions. These are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
+
+The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, feedforward/cost-gate integration, small classifier, and retrieval prototype. Sprint 4 remains the current implementation scope.
 
 ## Root files
 - `README.md` — project overview and repository map
