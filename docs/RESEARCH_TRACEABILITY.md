@@ -42,6 +42,14 @@ table that makes that traceability checkable rather than asserted.
 | `interface/feedforward.py` | Metacognitive Demands paper (direct source of the design pattern) |
 | `interface/confidence.py` | Impact of Gen AI on Critical Thinking (confidence ≠ accuracy finding) |
 | `interface/human_checkpoint.py` | NIST AI RMF (automation bias); Critical Thinking paper (stewardship) |
+| `tiers/small_classifier.py` | Project taxonomy (statistical classification → classical/specialized ML); Energy Considerations of LLM Inference and Efficiency Optimizations (lightweight/discriminative inference as a lower-generation workload). The synthetic seed itself is project/test data, not research evidence. |
+| `tiers/retrieval.py` | A Review of Prominent Paradigms for LLM-Based Agents (retrieval as a distinct execution component); implementation/evaluation boundary is project design. |
+| `tiers/rag_small_model.py` | A Review of Prominent Paradigms for LLM-Based Agents (retrieval + generation decomposition); the current generation stub is an implementation limitation, not a research claim. |
+| `audit/metrics.py` | Evaluation framework in this document; retrieval/classifier metric helpers are measurement infrastructure rather than direct findings from a paper. |
+| `tiers/model_selector.py` | How Hungry is AI; From Prompts to Power (resource-aware model selection and model-dependent energy variation). |
+| `triage/classifier.py`, `triage/taxonomy.py` | Project taxonomy/specification; these define routing categories and are not claimed as externally validated taxonomies. |
+| `guardrails/output_filter.py` | Sensitive Information Disclosure (OWASP) and the frozen architecture's requirement that security/validation boundaries apply across execution branches. |
+| `api/main.py` | Frozen architecture/specification and project integration work; no single paper is claimed as direct evidence for the API wiring itself. |
 | `session/session_state.py` | Identified during architecture stress-test, not from a single paper — a general multi-turn systems gap the papers don't directly cover |
 | `escalation/repair_router.py` | Synthesized from ChatGPT's original diagram + generalized during merge |
 | `validation/non_llm_checks.py` | Architecture-review gap ("who validates the validator") |
