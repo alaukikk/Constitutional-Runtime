@@ -89,63 +89,61 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Current Sprint 4 work
 
-`triage/decision.py`, `tests/triage/test_decision.py`, `api/main.py`, `tests/api/test_main_planner_integration.py`, `interface/human_checkpoint.py`, `interface/feedforward.py`, and the corresponding tests now contain the committed Sprint 4 planner, live-path integration, confirm-before-execute checkpoint, feedforward route/outcome text, and high-cost confirmation gate. The planner is repository state, and the API now walks the plan rather than the old hardcoded tier ladder. `REQUIRE_HUMAN` is an actual confirm-before-execute gate rather than a placeholder/unavailable path.
+The committed Sprint 4 planner, live-path integration, confirm-before-execute checkpoint, feedforward route/outcome text, and high-cost confirmation gate are now repository state. The API walks the plan rather than the old hardcoded tier ladder. `REQUIRE_HUMAN` is an actual confirm-before-execute gate rather than a placeholder/unavailable path.
 
-`plan_request(text)` is a pure planning step: it does not execute a tier. It produces the complete candidate ladder, an attempt/skip decision for each rung, reasons for skips, and cost estimates. `api/main.py` walks `plan.attempt_order`; once a tier answers, `plan.decision_for(tier, flags)` produces the auditable `RoutingDecision` rather than having `main.py` reconstruct the decision manually. The implementation records this through `TierStep` reasons and per-tier estimates.
+`plan_request(text)` is a pure planning step: it does not execute a tier. It produces the complete candidate ladder, an attempt/skip decision for each rung, reasons for skips, and cost estimates. `api/main.py` walks `plan.attempt_order`; once a tier answers, `plan.decision_for(tier, flags)` produces the auditable `RoutingDecision` rather than having `main.py` reconstruct the decision manually.
 
 The human checkpoint uses a signed, single-use confirmation token bound to the session, exact normalized text, and triggering rule set. The first `REQUIRE_HUMAN` call withholds execution and returns a confirmation token; a confirming call must submit that token with the same request. The token never overrides a BLOCK. Its remaining identity limitation and per-process state are tracked in `OPEN_ENDS.md` (`OI-013`, `OI-040`, `OI-041`).
 
 ### Implemented Sprint 4 planner decisions
 
-1. **Confidence is an escalate-only floor.** Category eligibility remains the primary gate. Low confidence may remove the small-classifier and RAG rungs, but must never force a cheaper or less capable route. The default floor is `0.4`, matching the existing classifier default; the current classifier confidence formula bottoms out at `0.55`, so the floor is currently inert and still requires calibration against the golden set (`OI-029`).
+1. **Confidence is an escalate-only floor.** Category eligibility remains the primary gate. Low confidence may remove the small-classifier and RAG rungs, but must never force a cheaper or less capable route. The default floor is `0.4`; the current classifier confidence formula bottoms out at `0.55`, so calibration remains open (`OI-029`, `OI-052`).
 2. **The deterministic rung is not classifier-gated.** The deterministic solver remains independently eligible and can answer inputs such as `2 + 2` even when the classifier labels the request `UNKNOWN`. It is skipped for `HIGH_STAKES` requests, while its own solver remains self-gating and returns `None` when unsure.
 3. **Classifier failure escalates conservatively.** A classifier exception or invalid return is treated as `UNKNOWN` with confidence `0.0`, cheap classifier/RAG rungs are skipped, and the LLM rung uses the maximum-capability escalation path rather than silently taking a weaker model.
-4. **`LLM_HIGH_REASONING` remains outside the normal Sprint 4 ladder.** It is reserved for explicit repair/escalation in Sprint 5, preserving the distinction between ordinary necessity routing and failure-driven escalation (`OI-034`).
+4. **`LLM_HIGH_REASONING` remains outside the normal Sprint 4 ladder.** It is reserved for explicit repair/escalation in Sprint 5 (`OI-034`).
 5. **High-stakes LLM routing carries a capability floor of `0.7` in the current planner.** The underlying catalog capability scores remain placeholders and are tracked by `OI-005`/`OI-033`.
 
 ### Planner implementation and test coverage
 
-`triage/decision.py` now contains:
-- `TierStep` — tier, attempt/skip state, reason, estimate, and selected model where applicable;
-- `RoutingPlan` — classification, confidence floor, classifier-failure state, and complete ordered steps;
-- `attempt_order` — the attempted tiers in cheapest-first order;
-- `rationale` — an auditable summary containing every rung's attempt/skip reason;
-- `decision_for(...)` — builds the final `RoutingDecision` from the tier that actually answered, carrying the selected model, tier cost estimate, rationale, and policy flags;
-- conservative configuration validation for the confidence floor.
-
-`tests/triage/test_decision.py` covers the golden attempt-order cases, high-stakes capability floor, cache-first/LLM-last invariant, unknown-category behavior, confidence-floor monotonicity and validation, classifier failure, per-step reasons/estimates, audit rationale, `decision_for(...)`, and deterministic planning. The development history reports **36 passing tests** for this planner suite; this documentation records that as reported development-session verification. The Sprint 4 API integration adds **7 tests** in `tests/api/test_main_planner_integration.py` covering the live planner path and audit integration.
+`triage/decision.py` contains `TierStep`, `RoutingPlan`, `attempt_order`, auditable `rationale`, and `decision_for(...)`. The planner tests cover attempt order, high-stakes capability floor, cache-first/LLM-last invariant, unknown-category behavior, confidence-floor monotonicity and validation, classifier failure, per-step reasons/estimates, audit rationale, and deterministic planning. The development history reports **36 passing tests** for this planner suite and **7 API integration tests**; these remain reported development-session results.
 
 ### Human checkpoint implementation
 
-`interface/human_checkpoint.py` now provides the confirm-before-execute gate for `REQUIRE_HUMAN`. Tokens are HMAC-SHA256 signed, bound to session/exact normalized text/rule IDs, time-limited, and single-use with atomic verification/consumption. Verification fails closed on internal errors. The checkpoint is stateless at issuance; only successful nonce consumptions are retained until expiry. `api/main.py` exposes `needs_confirmation` and `confirmation_token` in the response model and no longer uses the retired `human_checkpoint_unavailable` path.
+`interface/human_checkpoint.py` provides the confirm-before-execute gate for `REQUIRE_HUMAN`. Tokens are HMAC-SHA256 signed, bound to session/exact normalized text/rule IDs, time-limited, and single-use with atomic verification/consumption. Verification fails closed on internal errors. `api/main.py` exposes `needs_confirmation` and `confirmation_token` in the response model.
 
-The current checkpoint deliberately proves an explicit, content-bound second call rather than human identity. First-class audit fields for checkpoint-triggered/confirmed state remain a later audit-schema item (`OI-042`), while the once-only risk-charging behavior is recorded as resolved (`OI-043`).
+The current checkpoint deliberately proves an explicit, content-bound second call rather than human identity. First-class audit fields for checkpoint-triggered/confirmed state remain `OI-042`, while once-only risk charging remains a decision item (`OI-043`).
 
 ### Feedforward implementation
 
-`interface/feedforward.py` is now committed and integrated as Stage 4. It provides templated route-preview/outcome text from the pure `RoutingPlan` and a high-cost confirm gate based on worst-case energy/cost estimates. The gate uses `3 Wh` and `$0.05` placeholder limits and evaluates the upper-bound energy estimate across attempted rungs. For gated requests, the route preview is included before execution; for ungated requests, outcome text is attached to the response because the current single-call API has no separate pre-generation preview mode. The feedforward path deliberately hides classifier internals and full planner rationale from the caller while retaining them in the audit trail.
+`interface/feedforward.py` is committed and integrated as Stage 4. It provides templated route-preview/outcome text from the pure `RoutingPlan` and a high-cost confirm gate based on worst-case energy/cost estimates. The gate uses `3 Wh` and `$0.05` placeholder limits. For gated requests, the route preview is included before execution; for ungated requests, outcome text is attached to the response because the current single-call API has no separate pre-generation preview mode.
 
-Rendering failures fail open so execution can continue without feedforward text; cost-gate evaluation failures fail closed and require confirmation. The high-cost gate is separate from the classifier's `HIGH_STAKES` category; policy-defined `REQUIRE_HUMAN` remains the human-confirmation mechanism. These design choices and the remaining user-study/measurement gaps are tracked in `OPEN_ENDS.md` (`OI-045`–`OI-050`).
+Rendering failures currently fail open so execution can continue without feedforward text; cost-gate evaluation failures fail closed and require confirmation. These are explicit implementation interpretations rather than frozen constitutional requirements; `OI-050` remains open pending a policy decision. Remaining feedforward/user-study gaps are tracked in `OPEN_ENDS.md` (`OI-045`–`OI-050`, `OI-059`).
 
-The feedforward implementation adds **31 tests**: 19 unit tests and 12 API integration tests.
+### Small classifier implementation
+
+`tiers/small_classifier.py` is now implemented as a lightweight TF-IDF + logistic-regression classifier using `scikit-learn`, with abstention when confidence is below its configured floor. Its current seed is deliberately synthetic, hand-written, and English-only (`tiers/spam_seed_synthetic.py`). The seed is for implementation/unit testing only and is not evaluation evidence; a separate held-out evaluation set must be independently constructed and frozen before threshold tuning (`OI-051`, `OI-052`, `OI-057`). The classifier remains outside `CLASSIFICATION`-eligible live routing until the existing policy decision in `OI-031` is resolved (`OI-053`).
+
+### Retrieval / RAG boundary
+
+`tiers/retrieval.py` now provides the retrieval half of the intended grounded-answer path, with `audit/metrics.py` providing retrieval evaluation helpers. The file explicitly distinguishes retrieval from the RAG tier: `tiers/rag_small_model.py` still does not perform the small-model generation step. Retrieval-only functionality therefore must not be described as completed RAG (`OI-054`). The existing estimator observation that RAG can cost more than a same-model plain LLM because of retrieval/context overhead remains tracked by `OI-030`.
 
 ### Sprint 4 findings requiring explicit tracking
 
-- The estimator currently makes **RAG more expensive than a same-model plain LLM call** because the RAG estimate adds retrieval/context overhead (including approximately 1,000 context tokens). RAG therefore remains justified by grounding/capability rather than by an assumption that it is always the lower-energy option. This matters for the eventual `cost/breakeven.py` analysis (`OI-030`).
-- `CLASSIFICATION` is currently excluded from `CHEAP_TIER_ELIGIBLE`, so requests classified as `CLASSIFICATION` do not reach the small-classifier rung. The gap is intentionally deferred until the real small-classifier implementation exists; changing eligibility is a routing-policy decision rather than something to silently fix inside the planner (`OI-031`).
-- The planner intentionally does not duplicate `SessionState` enforcement. `api/main.py` remains responsible for combining the session floor with the Stage 1 action before routing (`OI-037`).
-- The high-cost feedforward limits are deliberately placeholders and require calibration alongside the model/cost catalog before they support empirical claims (`OI-045`).
+- `CLASSIFICATION` is currently excluded from `CHEAP_TIER_ELIGIBLE`; this remains a routing-policy decision (`OI-031`, `OI-053`).
+- The estimator contains placeholder runtime/cost inputs; lightweight-tier energy/cost figures are therefore developmental estimates until measured workloads are available (`OI-005`, `OI-055`).
+- The live Stage 2 gate records the current turn with `turn_cost=0.0`; cumulative-cost thresholding remains approximate until a pre-execution estimate is threaded into the gate (`OI-036`).
+- Withheld/blocked requests must not be presented as having measured execution cost merely because a placeholder estimate exists (`OI-058`).
+- The planner intentionally does not duplicate `SessionState` enforcement; `api/main.py` remains responsible for combining the session floor with the Stage 1 action before routing (`OI-037`).
+- The high-cost feedforward limits remain placeholders and require calibration alongside the model/cost catalog before they support empirical claims (`OI-045`).
 
 ### Remaining Sprint 4 sequence
 
-1. **Implement the real `tiers/small_classifier.py`.** Resolve the `CLASSIFICATION` eligibility question before treating the tier as production-ready (`OI-031`).
-2. **Implement the real `tiers/rag_small_model.py`.** The grounding corpus/model boundary needs an explicit decision before implementation; the existing cost observation remains tracked by `OI-030`.
-3. Resolve or carry forward any new open items discovered during small-classifier/RAG integration.
+1. Resolve the `CLASSIFICATION` eligibility question before enabling the small-classifier rung for those requests (`OI-031`, `OI-053`).
+2. Construct and freeze an independent classifier evaluation set, then calibrate the confidence threshold without using the synthetic seed as evaluation evidence (`OI-052`, `OI-057`).
+3. Complete the `rag_small_model.py` generation boundary only after the grounding corpus/model decision is explicit (`OI-054`).
+4. Carry forward the empirical resource, fairness, human-agency, and cost-accounting work into the appropriate later evaluation sprint (`OI-055`–`OI-059`).
 
-**Verification status:** the planner, API integration, human-checkpoint implementation, feedforward implementation, and associated tests are committed on `main`. The development history reports 36 passing dedicated planner tests plus 7 API integration tests. After feedforward integration, the full repository suite was run locally on **Windows with Python 3.11.7 and reported 346 tests passed**: 315 prior tests plus 19 feedforward unit tests and 12 feedforward integration tests. The 36-test planner result remains documented as development-session history; the 346-test result is the current full-suite verification for the feedforward-integrated Sprint 4 state.
-
----
-
+**Verification status:** the planner, API integration, human-checkpoint implementation, feedforward implementation, small-classifier implementation, synthetic seed, retrieval prototype, and associated tests are committed on `main`. The last independently reported full-suite run remains **346 tests passed** on Windows with Python 3.11.7 after feedforward integration. Commit `fc21a75` added the missing synthetic seed on 2026-10-02; no GitHub Actions workflow run is attached to that commit, so a fresh full-suite result is still pending. Sprint 4 therefore remains open for verification and the unresolved policy/calibration/evaluation work above.
 ## Sprint 5 — Escalation, validation, governance
 
 - `escalation/repair_router.py` (cross-cutting) — real stage-to-stage escalation, not just a post-validation loop. This is also where the deferred `LLM_HIGH_REASONING` escalation path belongs.
