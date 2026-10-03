@@ -135,6 +135,8 @@ Rendering failures currently fail open so execution can continue without feedfor
 - The planner intentionally does not duplicate `SessionState` enforcement; `api/main.py` remains responsible for combining the session floor with the Stage 1 action before routing (`OI-037`).
 - The high-cost feedforward limits remain placeholders and require calibration alongside the model/cost catalog before they support empirical claims (`OI-045`).
 
+- **OI-058 resolved:** audit records now distinguish `executed`, `withheld_pending_confirmation`, and `blocked`; withheld-route estimates are stored separately from zero placeholder execution cost, as recorded in `OPEN_ENDS.md`.
+
 ### Remaining Sprint 4 sequence
 
 1. Resolve the `CLASSIFICATION` eligibility question before enabling the small-classifier rung for those requests (`OI-031`, `OI-053`).
