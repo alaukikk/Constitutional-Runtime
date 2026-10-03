@@ -36,16 +36,16 @@ table that makes that traceability checkable rather than asserted.
 | `policy/governance/` | NIST AI RMF (Govern function) |
 | `cost/estimator.py`, `model_registry.py` | From Prompts to Power; How Hungry is AI |
 | `cost/breakeven.py` | Energy Considerations of LLM Inference (optimizations aren't free); How Hungry is AI (Jevons Paradox applied recursively to the runtime itself) |
-| `triage/decision.py` | LLM-Agents Review (necessity gap); Practices/Norms in Education (real heuristics); How Hungry is AI (reasoning depth as continuous dial) |
+| `triage/decision.py` | [SPEC] Stage 3 #1, #4, #7, #9, #10. [RESEARCH] How Hungry is AI §7, p.11 (reasoning depth as a cost dial). The existing LLM-Agents and Education citations are "per traceability doc, not re-verified". [JUDGMENT] 0.4 confidence floor (OI-029), 0.7 capability floor (OI-033). |
 | `triage/bias_monitor.py` | NIST AI RMF (Harmful Bias and Homogenization) |
 | `triage/modality_router.py` | Prompt Injection / OWASP (cross-modal injection) |
-| `interface/feedforward.py` | Metacognitive Demands paper (direct source of the design pattern) |
+| `interface/feedforward.py` | [SPEC] Stage 4 (#3 hard gate, #7 failure behavior) and Stage 3 #6 (omit classifier internals). The existing Metacognitive Demands citation is "per traceability doc, not re-verified". [JUDGMENT] cost-gate limits (OI-045), `HIGH_STAKES` not a gate (OI-046), fail-open/fail-closed split (OI-050). |
 | `interface/confidence.py` | Impact of Gen AI on Critical Thinking (confidence ≠ accuracy finding) |
-| `interface/human_checkpoint.py` | NIST AI RMF (automation bias); Critical Thinking paper (stewardship) |
-| `tiers/small_classifier.py` | Project taxonomy (statistical classification → classical/specialized ML); Energy Considerations of LLM Inference and Efficiency Optimizations (lightweight/discriminative inference as a lower-generation workload). The synthetic seed itself is project/test data, not research evidence. |
-| `tiers/retrieval.py` | A Review of Prominent Paradigms for LLM-Based Agents (retrieval as a distinct execution component); implementation/evaluation boundary is project design. |
-| `tiers/rag_small_model.py` | A Review of Prominent Paradigms for LLM-Based Agents (retrieval + generation decomposition); the current generation stub is an implementation limitation, not a research claim. |
-| `audit/metrics.py` | Evaluation framework in this document; retrieval/classifier metric helpers are measurement infrastructure rather than direct findings from a paper. |
+| `interface/human_checkpoint.py` | [SPEC] Stage 1 #10, Stage 7 #6. The existing NIST automation-bias and Critical Thinking citations are "per traceability doc, not re-verified". [JUDGMENT] token mechanics (HMAC-SHA256, 5-minute TTL, single use) come from general security practice, not the research set; once-only risk charging (OI-043); identity gap (OI-040). |
+| `tiers/small_classifier.py` | [SPEC] Stage 3 #4, #10. [PROJECT] TAXONOMY 2.8. [RESEARCH] Energy Considerations of LLM Inference, p.3 of the supplied file (classification involves minimal generation) and p.4 (decoding dominates energy except for short-generation tasks like classification); From Prompts to Power §VI, p.11 (judge performance and energy together). [JUDGMENT] TF-IDF + logistic regression, hyperparameters, thresholds (OI-052). |
+| `tiers/retrieval.py` | [PROJECT] TAXONOMY 2.1, 2.13. [RESEARCH] Agents review §4.2, p.5 (in passive RAG, retrieval supplies information the model uses to generate its response). [JUDGMENT] TF-IDF and cosine similarity, chunking, `min_score`, `docs/` as a prototype corpus (OI-054). |
+| `tiers/rag_small_model.py` | [PROJECT] TAXONOMY 2.13. [RESEARCH] Agents review §4.2, p.5. Stub: generation is blocked by OI-006. |
+| `audit/metrics.py` | [RESEARCH] Prompts to Power §VI, p.11; Energy Considerations p.1 (idealized settings miss real workloads, so measure real ones). [PROJECT] evaluation framework above. [JUDGMENT] metric definitions. Energy figures are estimates (OI-055). |
 | `tiers/model_selector.py` | How Hungry is AI; From Prompts to Power (resource-aware model selection and model-dependent energy variation). |
 | `triage/classifier.py`, `triage/taxonomy.py` | Project taxonomy/specification; these define routing categories and are not claimed as externally validated taxonomies. |
 | `guardrails/output_filter.py` | Sensitive Information Disclosure (OWASP) and the frozen architecture's requirement that security/validation boundaries apply across execution branches. |
@@ -53,7 +53,7 @@ table that makes that traceability checkable rather than asserted.
 | `session/session_state.py` | Identified during architecture stress-test, not from a single paper — a general multi-turn systems gap the papers don't directly cover |
 | `escalation/repair_router.py` | Synthesized from ChatGPT's original diagram + generalized during merge |
 | `validation/non_llm_checks.py` | Architecture-review gap ("who validates the validator") |
-| `audit/audit_log.py` | NIST AI RMF (incident disclosure named as a priority consideration) |
+| `audit/audit_log.py` | [SPEC] Stage 7 audit schema target; Stage 5 #8 (actual vs. estimated cost). [PROJECT] OI-058. The existing NIST citation (incident disclosure) stays marked "per traceability doc, not re-verified". |
 
 ---
 
