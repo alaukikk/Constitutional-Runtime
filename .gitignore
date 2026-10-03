@@ -1,6 +1,6 @@
-   .env
-   __pycache__/
-   *.pyc
-   .pytest_cache/
-   audit_log.jsonl
-   dev.db
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+audit_log.jsonl
+dev.db
