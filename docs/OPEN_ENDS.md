@@ -107,7 +107,6 @@ The Sprint 4 planner, API integration, human-checkpoint path, and feedforward/co
 | OI-048 | **Feedforward outcome taxonomy cannot distinguish cancellation from abandonment.** Proceeded and modified outcomes are observable, while cancellation is represented through a rejected/unused confirmation token or absence of a confirming call and therefore cannot be reliably distinguished from abandonment. | Nice-to-have | Before user-study outcome analysis, if cancellation is a measured variable | Open |
 | OI-049 | **User-facing feedforward text deliberately omits classifier internals and full planner rationale.** The caller sees the route/model/cost summary, while the detailed Stage 3 rationale remains in the audit log. This follows the Stage 3 #6 attack-surface constraint. | — | — | Resolved (design) |
 | OI-050 | **Feedforward failure semantics are currently an explicit interpretation of Stage 4 #7, not a direct frozen-spec requirement.** The implementation renders feedforward fail-open while cost-gate evaluation errors fail closed and require confirmation. Whether these failure modes are the normative policy should be explicitly settled before treating them as constitutional behavior. | Decision needed | Before finalizing Stage 4 failure semantics / before user-study claims about gate behavior | Open |
-
 | OI-051 | **Small-classifier seed data is synthetic and English-only.** `tiers/spam_seed_synthetic.py` is explicitly implementation/test data, not evaluation evidence; its distribution and language coverage do not represent real traffic. | Should-fix | Before empirical classifier evaluation / Sprints 7–8 | Open |
 | OI-052 | **Small-classifier confidence threshold requires empirical calibration.** The classifier can abstain on low confidence, but the threshold must be tuned against a separately constructed, frozen evaluation set rather than the synthetic seed. | Should-fix | Before empirical classifier evaluation | Open |
 | OI-053 | **Small-classifier live reachability is guarded by OI-031.** The small classifier is built but unreachable from the live pipeline until OI-031 is decided. `TestUnreachableUntilOI031` fails if eligibility or the keyword vocabulary changes in a way that makes it reachable; take that failure to OI-031 instead of editing the test. | Decision needed | Before enabling the small-classifier rung for `CLASSIFICATION` requests | Open |
@@ -120,7 +119,7 @@ The Sprint 4 planner, API integration, human-checkpoint path, and feedforward/co
 ## Already scheduled in the plan (not duplicated here)
 
 These were deliberately left unbuilt and already have a sprint in `EXECUTION_PLAN.md`:
-real small-classifier/RAG tiers (Sprint 4), `escalation/repair_router.py`, validator,
+the small classifier is built; the RAG tier remains blocked by OI-006 and OI-054. Also scheduled: `escalation/repair_router.py`, validator,
 governance, `bias_monitor.py` (Sprint 5), `modality_router.py` and full adversarial suites
 (Sprint 6), `cost/breakeven.py` and the comparative experiment (Sprints 7–8). Also tracked in
 the plan: formal user-study design and its ethics/methodology pass (needed before Sprint 7)
