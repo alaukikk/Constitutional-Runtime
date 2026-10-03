@@ -167,3 +167,26 @@ def safe_outcome(plan: RoutingPlan, tier_used: MethodTier) -> Optional[str]:
     except Exception:
         log.exception("feedforward outcome failed; proceeding without it")
         return None
+
+
+def worst_case_estimate(plan: RoutingPlan) -> dict:
+    """Audit-ready estimate of a route that was WITHHELD (OI-058). It describes a
+    route that did not run, so it is kept apart from decision.cost_estimate."""
+    c = worst_case(plan)
+    return {
+        "est_energy_wh": c.wh,
+        "est_energy_wh_high": c.wh_high,
+        "est_dollar_cost": c.usd,
+        "est_latency_ms": c.latency_ms,
+        "basis": "estimate of the withheld route; nothing executed, so no cost was incurred",
+    }
+
+
+def safe_worst_case_estimate(plan: RoutingPlan) -> Optional[dict]:
+    """Never raises: a failure to estimate must not stop the audit record from
+    being written, so it yields None and the record says no estimate exists."""
+    try:
+        return worst_case_estimate(plan)
+    except Exception:
+        log.exception("could not estimate the withheld route for the audit record")
+        return None
