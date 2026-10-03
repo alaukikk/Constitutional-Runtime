@@ -2,8 +2,8 @@
 api/main.py — Stage 0 -> Stage 1 -> Stage 2 (session) -> Stage 3/5 (tier
 ladder) -> Stage 7 (audit).
 
-Stage 4 (feedforward), Stage 6 (validator) are NOT wired here yet -- Sprint
-4-5 scope per docs/EXECUTION_PLAN.md, not a backlog gap in this file.
+Stage 6 (validator) is NOT wired here yet (Sprint 5). 
+Stage 4 (interface/feedforward.py) is wired after Stage 3 planning: cost gate plus route preview/outcome.
 
 REQUIRE_HUMAN (Stage 1 or session-derived) is satisfied by a confirm-before-execute checkpoint (interface/human_checkpoint.py): 
 the first call returns needs_confirmation plus a single-use token bound to session, exact text, and rule set; 
@@ -55,6 +55,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from api.settings import settings
 from interface.human_checkpoint import CheckpointManager, confirmation_message
+from interface.feedforward import GATE_COST_ID, evaluate_gate, safe_outcome, safe_preview, safe_worst_case_estimate
 
 from guardrails.injection_screen import screen_request, ScreenVerdict
 from policy.engine import get_policy_engine
@@ -122,6 +123,7 @@ class PipelineResult:
     block_reason: str | None
     needs_confirmation: bool = False
     confirmation_token: str | None = None
+    feedforward: str | None = None
 
 
 def process_request(text: str, session_id: str | None = None, confirmation_token: str | None = None) -> PipelineResult:
@@ -141,7 +143,7 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
             rationale=f"Stage 0 blocked request before Stage 1 ran. Matched patterns: {screen_result.matched_patterns}",
             cost_estimate=TierCostEstimate(tier=MethodTier.CACHE),
             policy_flags=[],
-        ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot())
+        ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot(), execution="blocked")
         return PipelineResult(response="This request could not be processed.",
                                tier_used="blocked_stage0", blocked=True, block_reason="stage0_screen")
 
@@ -155,8 +157,14 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
     # A token can only satisfy REQUIRE_HUMAN. It is never examined for a
     # Stage 1 BLOCK; it is single-use and bound to session + exact text + rules.
     confirmation = None
+    ack_cost = False
     if confirmation_token is not None and most_severe != PolicyAction.BLOCK:
         confirmation = _checkpoint.verify_and_consume(confirmation_token, session_id, normalized, rule_ids)
+        if not confirmation.ok and confirmation.reason == "bad_signature":
+            with_cost = _checkpoint.verify_and_consume(
+                confirmation_token, session_id, normalized, rule_ids + [GATE_COST_ID])
+            if with_cost.ok or with_cost.reason != "bad_signature":
+                confirmation, ack_cost = with_cost, with_cost.ok
     confirmed = bool(confirmation and confirmation.ok)
 
     # --- Stage 2 --- (one call per request; see module docstring on ordering/OI-036)
@@ -175,40 +183,64 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
         log_decision(session_id, RoutingDecision(
             selected_tier=MethodTier.CACHE, selected_model=None, rationale=rationale,
             cost_estimate=TierCostEstimate(tier=MethodTier.CACHE), policy_flags=flags,
-        ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot())
+        ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot(), execution="blocked")
         return PipelineResult(response="This request violates policy and cannot be processed.",
                                tier_used="blocked_stage1",
                                blocked=True,
                                block_reason="session_block" if session_escalated else "policy_gate")
 
-    if combined == PolicyAction.REQUIRE_HUMAN and not confirmed:
-        if most_severe == PolicyAction.REQUIRE_HUMAN:
+    # --- Stage 3 (pure planning: no model call, nothing executes) ---
+    plan = plan_request(normalized)
+
+    # --- Stage 4: feedforward + hard confirm gates ---
+    gate = evaluate_gate(plan)
+    human_needed = combined == PolicyAction.REQUIRE_HUMAN and not confirmed
+    cost_needed = gate.required and not ack_cost
+    if human_needed or cost_needed:
+        if human_needed and most_severe == PolicyAction.REQUIRE_HUMAN:
             reasons = [f.reason for f in flags if f.action == PolicyAction.REQUIRE_HUMAN]
-            rationale = (f"Stage 1 flagged REQUIRE_HUMAN ({rule_ids}). Execution withheld until the "
-                         f"caller re-submits with a valid human-confirmation token.")
-        else:
+            rationale = f"Stage 1 flagged REQUIRE_HUMAN ({rule_ids})."
+        elif human_needed:
             reasons = list(constraints.reasons)
             rationale = (f"This message's own Stage 1 result was {most_severe.value}, but session-level "
                          f"escalation raised it to REQUIRE_HUMAN: cumulative session risk/cost crossed the "
-                         f"threshold ({', '.join(constraints.reasons)}). Execution withheld until the "
-                         f"caller re-submits with a valid human-confirmation token.")
+                         f"threshold ({', '.join(constraints.reasons)}).")
+        else:
+            reasons, rationale = [], "Stage 4 high-cost gate."
+        if cost_needed:
+            reasons += list(gate.reasons)
+            rationale += f" Stage 4 high-cost gate: {'; '.join(gate.reasons)}."
+        rationale += (" Execution withheld until the caller re-submits with a valid "
+                      "human-confirmation token.")
         if confirmation is not None and not confirmation.ok:
             rationale += f" Previous confirmation rejected ({confirmation.reason})."
-        token = _checkpoint.issue(session_id, normalized, rule_ids)
+        preview = safe_preview(plan)
+        rationale += (" Feedforward shown before execution." if preview
+                      else " Feedforward unavailable (render error).")
+        token = _checkpoint.issue(session_id, normalized,
+                                  rule_ids + ([GATE_COST_ID] if gate.required else []))
         log_decision(session_id, RoutingDecision(
             selected_tier=MethodTier.CACHE, selected_model=None, rationale=rationale,
             cost_estimate=TierCostEstimate(tier=MethodTier.CACHE), policy_flags=flags,
-        ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot())
+        ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot(), 
+                     execution="withheld_pending_confirmation", 
+                     withheld_route_estimate=safe_worst_case_estimate(plan))
+        message = confirmation_message(reasons, _checkpoint.ttl_seconds)
+        if preview:
+            message += " " + preview
+        if human_needed:
+            block_reason = "session_require_human" if session_escalated else "human_confirmation_required"
+        else:
+            block_reason = "cost_confirmation_required"
         return PipelineResult(
-            response=confirmation_message(reasons, _checkpoint.ttl_seconds),
-            tier_used="blocked_stage1_human_required", blocked=True,
-            block_reason="session_require_human" if session_escalated else "human_confirmation_required",
-            needs_confirmation=True, confirmation_token=token)
+            response=message,
+            tier_used="blocked_stage1_human_required" if human_needed else "blocked_stage4_cost_gate",
+            blocked=True, block_reason=block_reason,
+            needs_confirmation=True, confirmation_token=token, feedforward=preview)
 
-    # --- Stage 3/5 ---
-    plan = plan_request(normalized)
+    # --- Stage 5 ---
     tier_used = None
-    result_text = None
+    result_text = None    
     for tier in plan.attempt_order:
         if tier == MethodTier.LLM_LOW_REASONING:
             tier_used = tier
@@ -228,12 +260,17 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
     # --- Stage 7 (partial) ---
     decision = plan.decision_for(tier_used, flags)
     if confirmed:
-        decision = replace(decision, rationale=f"human confirmation accepted (token {confirmation.nonce}); "
+        ack = "; high-cost gate acknowledged" if ack_cost else ""
+        decision = replace(decision, rationale=f"human confirmation accepted (token {confirmation.nonce}{ack}); "
                                                + decision.rationale)
+    outcome = safe_outcome(plan, tier_used)
+    decision = replace(decision, rationale=decision.rationale + (
+        " Feedforward attached to response." if outcome else " Feedforward unavailable (render error)."))
     log_decision(session_id, decision, stage0_screen_result=verdict_str,
-                 session_state_snapshot=state.snapshot())
+                 session_state_snapshot=state.snapshot(), execution="executed")
 
-    return PipelineResult(response=result_text, tier_used=tier_used.value, blocked=False, block_reason=None)
+    return PipelineResult(response=result_text, tier_used=tier_used.value, blocked=False,
+                          block_reason=None, feedforward=outcome)
 
 
 # --- FastAPI glue (thin wrapper around process_request) ---
@@ -255,6 +292,7 @@ try:
         block_reason: str | None = None
         needs_confirmation: bool = False
         confirmation_token: str | None = None
+        feedforward: str | None = None
 
     @app.post("/v1/respond", response_model=ResponseOut)
     def respond(req: RequestIn) -> ResponseOut:
