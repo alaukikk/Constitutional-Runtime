@@ -120,3 +120,25 @@ def test_render_failures_fail_open(monkeypatch):
 def test_safe_helpers_pass_text_through_when_healthy():
     assert ff.safe_preview(GEN_PLAN) == ff.preview_text(GEN_PLAN)
     assert ff.safe_outcome(GEN_PLAN, T.LLM_LOW_REASONING) == ff.outcome_text(GEN_PLAN, T.LLM_LOW_REASONING)
+
+
+# ---- OI-058: audit estimate for a withheld route ----
+
+def test_worst_case_estimate_matches_worst_case_and_is_labeled_as_not_incurred():
+    est = ff.worst_case_estimate(GEN_PLAN)
+    c = ff.worst_case(GEN_PLAN)
+    assert est["est_energy_wh"] == pytest.approx(c.wh)
+    assert est["est_energy_wh_high"] == pytest.approx(c.wh_high)
+    assert est["est_dollar_cost"] == pytest.approx(c.usd)
+    assert est["est_latency_ms"] == pytest.approx(c.latency_ms)
+    assert "nothing executed" in est["basis"]
+
+
+def test_safe_worst_case_estimate_never_raises(monkeypatch):
+    assert ff.safe_worst_case_estimate(GEN_PLAN) == ff.worst_case_estimate(GEN_PLAN)
+
+    def boom(plan):
+        raise RuntimeError("estimator exploded")
+
+    monkeypatch.setattr(ff, "worst_case", boom)
+    assert ff.safe_worst_case_estimate(GEN_PLAN) is None
