@@ -33,8 +33,8 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `gateway.py` — the raw API client (handles auth, retries, request/response format)
 
 `audit/` — keeps a record
-- `audit_log.py` — logs every decision made and why
-- `metrics.py` — tracks numbers over time (cost saved, escalation rate, etc.)
+- `audit_log.py` — logs every decision made and why; records `execution` state and the withheld-route estimate
+- `metrics.py` — tracks numbers over time (cost saved, escalation rate, etc.) and hosts offline evaluation metrics
 
 `policy/` — enforces the rulebook
 - `engine.py` — reads `constitution.yaml` and applies the rules
@@ -80,13 +80,13 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 **Sprint 3 — Session context + real cost accounting: COMPLETE.**
 
-**Sprint 4 — Graduated routing + feedforward: IN PROGRESS.**
+**Sprint 4 — Graduated routing + feedforward: IMPLEMENTATION COMPLETE; carry-forwards tracked in `docs/OPEN_ENDS.md`.**
 
 The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. The Stage 4 feedforward layer is also committed and integrated, providing templated route/outcome text and a high-cost confirmation gate. The API exposes a `feedforward` response field alongside the confirmation fields where applicable. The small-classifier implementation and retrieval prototype are now also committed; the complete RAG generation path is intentionally not yet implemented.
 
-The latest full-suite run reports **397 passed, 1 skipped** (local run). This verifies the current implementation state after the synthetic classifier seed was added.
+The latest full-suite run reports **414 passed, 1 skipped (local run, Windows, Python 3.11.7)**. The skipped test is the Windows symlink test.
 
-Still open in Sprint 4 are the `CLASSIFICATION` eligibility decision, classifier calibration/evaluation, the complete RAG path, empirical resource measurements, and the remaining feedforward/user-study decisions. These are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
+Carry-forwards from Sprint 4 include the `CLASSIFICATION` eligibility decision, classifier calibration/evaluation, the complete RAG generation path, empirical resource measurements, and the remaining feedforward/user-study decisions. These are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
 
 The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, feedforward/cost-gate integration, small classifier, and retrieval prototype. Sprint 4 implementation and automated test verification are complete; the remaining Sprint 4 open items are policy, calibration, empirical-evaluation, and research questions tracked in `docs/OPEN_ENDS.md`.
 
