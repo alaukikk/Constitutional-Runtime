@@ -83,7 +83,7 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ---
 
-## Sprint 4 — Graduated routing + feedforward (IN PROGRESS)
+## Sprint 4 — Graduated routing + feedforward (Implementation complete; carry-forwards tracked in OPEN_ENDS)
 
 **Goal:** replace the current hardcoded tier loop with an auditable planning layer that evaluates the graduated ladder, while adding the Stage 4 feedforward/human-checkpoint boundary.
 
@@ -132,7 +132,6 @@ Rendering failures currently fail open so execution can continue without feedfor
 - `CLASSIFICATION` is currently excluded from `CHEAP_TIER_ELIGIBLE`; this remains a routing-policy decision (`OI-031`, `OI-053`).
 - The estimator contains placeholder runtime/cost inputs; lightweight-tier energy/cost figures are therefore developmental estimates until measured workloads are available (`OI-005`, `OI-055`).
 - The live Stage 2 gate records the current turn with `turn_cost=0.0`; cumulative-cost thresholding remains approximate until a pre-execution estimate is threaded into the gate (`OI-036`).
-- Withheld/blocked requests must not be presented as having measured execution cost merely because a placeholder estimate exists (`OI-058`).
 - The planner intentionally does not duplicate `SessionState` enforcement; `api/main.py` remains responsible for combining the session floor with the Stage 1 action before routing (`OI-037`).
 - The high-cost feedforward limits remain placeholders and require calibration alongside the model/cost catalog before they support empirical claims (`OI-045`).
 
@@ -143,7 +142,7 @@ Rendering failures currently fail open so execution can continue without feedfor
 3. Complete the `rag_small_model.py` generation boundary only after the grounding corpus/model decision is explicit (`OI-054`).
 4. Carry forward the empirical resource, fairness, human-agency, and cost-accounting work into the appropriate later evaluation sprint (`OI-055`–`OI-059`).
 
-**Verification status:** the planner, API integration, human-checkpoint implementation, feedforward implementation, small-classifier implementation, synthetic seed, retrieval prototype, and associated tests are committed on `main`. The latest full-suite run reports **397 tests passed, 1 skipped** (local run). This verifies the current implementation state after the synthetic seed was added. Sprint 4 automated test verification is therefore complete; the unresolved policy, calibration, empirical-measurement, and evaluation work above remains tracked in `OPEN_ENDS.md`.
+**Verification status:** the planner, API integration, human-checkpoint implementation, feedforward implementation, small-classifier implementation, synthetic seed, retrieval prototype, and associated tests are committed on `main`. The latest full-suite run reports **414 tests passed, 1 skipped (local run, Windows, Python 3.11.7)**. The skipped test is the Windows symlink test. Sprint 4 automated test verification is complete; carry-forwards remain tracked in `OPEN_ENDS.md`.
 ## Sprint 5 — Escalation, validation, governance
 
 - `escalation/repair_router.py` (cross-cutting) — real stage-to-stage escalation, not just a post-validation loop. This is also where the deferred `LLM_HIGH_REASONING` escalation path belongs.
