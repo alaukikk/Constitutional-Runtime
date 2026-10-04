@@ -5,7 +5,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 ## Repository structure
 
 `api/` — the front door
-- `main.py` — live Stage 0 → Stage 1 → Stage 2 → Stage 3/5 → Stage 7 request pipeline
+- `main.py` — live Stage 0 → Stage 1 → Stage 2 → Stage 3/5 → Stage 6 → Stage 7 request pipeline
 - `settings.py` — app-level settings (API keys, ports, checkpoint signing secret, env variables)
 
 `config/` — the rulebook, as data
@@ -33,7 +33,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `gateway.py` — the raw API client (handles auth, retries, request/response format)
 
 `audit/` — keeps a record
-- `audit_log.py` — logs every decision made and why; records `execution` state and the withheld-route estimate
+- `audit_log.py` — logs every decision made and why; records `execution`, validation trace, and withheld-route estimates
 - `metrics.py` — tracks numbers over time (cost saved, escalation rate, etc.) and hosts offline evaluation metrics
 
 `policy/` — enforces the rulebook
@@ -56,7 +56,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `model_selector.py` — selects among candidate models using capability floors and energy/dollar objectives
 
 `triage/` — decides what kind of request this is and where it should go
-- `bias_monitor.py` — checks the router isn't treating some phrasing/languages unfairly (Sprint 5)
+- `bias_monitor.py` — checks the router isn't treating some phrasing/languages unfairly
 - `classifier.py` — first-pass keyword classifier; its output feeds the Stage 3 planner in `decision.py`
 - `decision.py` — the Stage 3 planner: builds the cheapest-first routing plan (cache → deterministic → small classifier → RAG → LLM) with per-rung skip reasons and cost estimates
 - `modality_router.py` — handles text/image/audio requests (Sprint 6)
@@ -64,14 +64,17 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 `validation/` — checks the answer before it's shown to anyone
 - `non_llm_checks.py` — cheap, rule-based checks (preferred over using another AI call to check)
-- `validator.py` — main validation logic (Sprint 5)
+- `validator.py` — main Stage 6 validation logic
 
 `escalation/`
-- `repair_router.py` — decides what happens when a stage fails — retry, escalate to a bigger tier, or hand to a human (Sprint 5)
+- `repair_router.py` — decides whether a failed execution/validation path can be repaired or must be withheld
 
 `docs/` — project control and research documentation
 - `EXECUTION_PLAN.md` — sprint status and implementation plan
 - `OPEN_ENDS.md` — authoritative unresolved-work register
+- `FUTURE_SCOPE.md` — deferred extensions and future research directions
+- `TAXONOMY.MD` — computational-structure taxonomy used by routing
+- `SOURCE_OF_TRUTH.md` — documentation authority map
 - `RESEARCH_TRACEABILITY.md` — maps research findings to design decisions and evaluation
 - `ARCHITECTURE.md` — frozen architecture/specification
 - `CONSTITUTION.md` — constitutional change/decision process
@@ -82,15 +85,15 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 **Sprint 4 — Graduated routing + feedforward: IMPLEMENTATION COMPLETE; carry-forwards tracked in `docs/OPEN_ENDS.md`.**
 
-**Sprint 5 — Escalation, validation, governance: IN PROGRESS.** Validator/non-LLM checks and the repair-router decision module are implemented and tested. Live validation/repair API wiring, governance enforcement, and bias monitoring remain open.
+**Sprint 5 — Escalation, validation, governance: IN PROGRESS.** Stage 6 validation, non-LLM checks, repair-router logic, and live validation/repair API wiring are implemented and tested. Governance enforcement and bias monitoring remain open.
 
 The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. The Stage 4 feedforward layer is also committed and integrated, providing templated route/outcome text and a high-cost confirmation gate. The API exposes a `feedforward` response field alongside the confirmation fields where applicable. The small-classifier implementation and retrieval prototype are now also committed; the complete RAG generation path is intentionally not yet implemented.
 
-The latest previously reported full-suite run was **414 passed, 1 skipped (local run, Windows, Python 3.11.7)**. The skipped test is the Windows symlink test. Sprint 5 changes have been reviewed from the current `main` snapshot; no new full-suite result is asserted here.
+The latest owner-reported local full-suite run was **486 passed, 1 skipped**. The skipped test is the Windows symlink test. This is an owner-reported local result; no independent test run is claimed here.
 
 Carry-forwards from Sprint 4 include the `CLASSIFICATION` eligibility decision, classifier calibration/evaluation, the complete RAG generation path, empirical resource measurements, and the remaining feedforward/user-study decisions. These are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
 
-The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, feedforward/cost-gate integration, small classifier, and retrieval prototype. Sprint 4 implementation and automated test verification are complete; Sprint 5 is now in progress. The validator/non-LLM checks and repair-router tests are committed, while live validation/repair integration, governance enforcement, and bias monitoring remain tracked in `docs/OPEN_ENDS.md`.
+The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, feedforward/cost-gate integration, small classifier, and retrieval prototype. Sprint 4 implementation and automated test verification are complete; Sprint 5 remains in progress because governance enforcement and bias monitoring are still outstanding. Stage 6 validation, repair-router logic, and live validation/repair integration are committed and tracked in `docs/OPEN_ENDS.md`.
 
 ## Root files
 - `README.md` — project overview and repository map
