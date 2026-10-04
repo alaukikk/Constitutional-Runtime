@@ -25,7 +25,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `output_filter.py` — checks the final output for unsafe content
 
 `interface/` — what the user sees / where human interaction gates live
-- `confidence.py` — shows how reliable a given answer is, so the user knows how much to trust it
+- `confidence.py` — planned confidence presentation/communication layer
 - `feedforward.py` — templated route preview/outcome text and the high-cost confirm gate
 - `human_checkpoint.py` — confirm-before-execute gate for `REQUIRE_HUMAN`: single-use, signed tokens bound to session, exact text, and rule set
 
@@ -39,8 +39,8 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 `policy/` — enforces the rulebook
 - `engine.py` — reads `constitution.yaml` and applies the rules
 - `schemas.py` — defines the shared data shapes (what a decision or classification looks like)
-- `governance/CODEOWNERS` — says who must approve changes to policy files
-- `governance/change_log.py` — keeps a version history of policy changes
+- `governance/CODEOWNERS` — planned governance ownership enforcement
+- `governance/change_log.py` — planned policy-change history and traceability
 
 `session/` — remembers context across a conversation
 - `session_state.py` — tracks cumulative risk/cost, turn count, and monotonic constraints across a conversation
@@ -52,11 +52,11 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `deterministic.py` — rule-based / calculator / lookup answers, no AI involved
 - `small_classifier.py` — a small, cheap model for simple categorization tasks
 - `rag_small_model.py` — a small model with retrieved reference info to back its answer
-- `llm_call.py` — calls the full LLM (via `llm/gateway.py`), with adjustable reasoning depth
+- `llm_call.py` — full-LLM call stub (via `llm/gateway.py`); reasoning-depth control is planned (OI-006)
 - `model_selector.py` — selects among candidate models using capability floors and energy/dollar objectives
 
 `triage/` — decides what kind of request this is and where it should go
-- `bias_monitor.py` — checks the router isn't treating some phrasing/languages unfairly
+- `bias_monitor.py` — planned routing-outcome comparison for phrasing/language fairness
 - `classifier.py` — first-pass keyword classifier; its output feeds the Stage 3 planner in `decision.py`
 - `decision.py` — the Stage 3 planner: builds the cheapest-first routing plan (cache → deterministic → small classifier → RAG → LLM) with per-rung skip reasons and cost estimates
 - `modality_router.py` — handles text/image/audio requests (Sprint 6)
