@@ -36,7 +36,7 @@ dropped items stay, with a one-line note, because the history is useful for the 
 
 ## From Sprint 1 (Skeleton)
 
-| ID | Item | Severity | Trigger | Status | Basis |
+| ID | Item | Severity | Trigger | Status | Basis | Basis |
 |---|---|---|---|---|
 | OI-001 | **Verify repo state vs. plan.** Sprint 3 implementation was initially present only in the Claude/local history while `main` still had empty core files. The repository discrepancy has now been resolved: `session/session_state.py`, `cost/estimator.py`, `tiers/model_selector.py`, their tests, and the `api/main.py` integration are committed to `main`. | — | — | Resolved (Sprint 3 closure) | [SPEC] [PROJECT] |
 | OI-002 | **Stage 0 screen is basic regex.** The adversarially-tested classifier is a later-sprint, security-owned item. | Should-fix | Sprint 6 (adversarial hardening) | Open | [SPEC] [PROJECT] |
@@ -50,7 +50,7 @@ dropped items stay, with a one-line note, because the history is useful for the 
 
 ## From Sprint 2 (First real tiers)
 
-| ID | Item | Severity | Trigger | Status |
+| ID | Item | Severity | Trigger | Status | Basis |
 |---|---|---|---|---|
 | OI-010 | **LiteLLM / multiple real providers** deliberately deferred. Infrastructure, not the research contribution. | Nice-to-have | After core hypothesis validated with 1–2 models | Open | [PROJECT] |
 | OI-011 | **Golden set of ~20–30 hand-labeled requests** started in Sprint 2 must be carried forward and cleaned up for the real experiment. | Must-fix | Sprint 7 | Open | [PROJECT] |
@@ -60,7 +60,7 @@ dropped items stay, with a one-line note, because the history is useful for the 
 
 Items found while building/reviewing `session/session_state.py` and the Sprint 3 plan.
 
-| ID | Item | Severity | Trigger | Status |
+| ID | Item | Severity | Trigger | Status | Basis |
 |---|---|---|---|---|
 | OI-013 | **Session ID rotation.** If clients choose their own session ID, they can restart with a clean history on every request and bypass Stage 2. Fix: server-issued or signed session IDs at an upstream authentication/session boundary, plus an end-to-end rotation attack test. The same upstream identity/session binding is also required for the human-confirmation token: the token proves a correctly signed, content-bound second call, but not that a human made it. | Must-fix | Before any red-team / before load-bearing deployment | Open | [SPEC] [JUDGMENT] |
 | OI-014 | **Blocked turns must still be recorded.** `api/main.py` now records Stage 0 blocks before returning, and Stage 1/session-terminal paths are recorded before returning. | — | — | Resolved (Sprint 3 wiring) | [SPEC] [PROJECT] |
@@ -83,7 +83,7 @@ Items found while building/reviewing `session/session_state.py` and the Sprint 3
 
 The Sprint 4 planner, API integration, human-checkpoint path, and feedforward/cost-gate path are now committed to `main`; these items track the remaining design, calibration, verification, and later-sprint work. IDs 029+ are intentionally used because OI-027/OI-028 are historical stable IDs.
 
-| ID | Item | Severity | Trigger | Status |
+| ID | Item | Severity | Trigger | Status | Basis |
 |---|---|---|---|---|
 | OI-029 | **Confidence-floor calibration.** `triage/decision.py` implements an escalate-only confidence floor, default `0.4`, matching `classifier.py`. The current classifier confidence formula bottoms out at `0.55`, so the floor has no effect on today's outputs. Calibrate the threshold against the golden set before treating it as an empirically meaningful gate. | Should-fix | Golden-set calibration / Sprint 7 | Open | [JUDGMENT] [PROJECT] |
 | OI-030 | **RAG currently costs more than a same-model plain LLM call under the estimator.** Retrieval/context overhead, including roughly 1,000 additional context tokens, makes the RAG estimate higher. This does not invalidate RAG: its purpose is grounding/capability. It does mean the "cheapest adequate" narrative cannot assume RAG is always cheaper than direct LLM inference, and `cost/breakeven.py` must account for the overhead. | Should-fix | Before empirical cost/breakeven analysis | Open | [RESEARCH] [PROJECT] |
@@ -118,9 +118,9 @@ The Sprint 4 planner, API integration, human-checkpoint path, and feedforward/co
 | OI-059 | **Feedforward's human-agency effect has not yet been empirically evaluated.** The implementation exposes route/outcome information and confirmation gates, but the planned user-study scrutiny/acceptance measurements have not been run. | Should-fix | Before Stage 4 user-study claims / Sprints 7–8 | Open | [RESEARCH] [PROJECT] |
 ## Sprint 5 — Escalation, validation, governance
 
-Sprint 5 is in progress. The Stage 6 validator/non-LLM checks and the cross-cutting repair router are now implemented and tested on main. The live API path still does not invoke validation/repair, and the governance and bias-monitor modules remain empty placeholders; those are the remaining implementation steps before Sprint 5 can be called complete.
+Sprint 5 is in progress. The Stage 6 validator/non-LLM checks, cross-cutting repair router, and live API validation/repair wiring are implemented and tested on main. Governance enforcement and the bias-monitor module remain the outstanding Sprint 5 implementation work.
 
-| ID | Item | Severity | Trigger | Status |
+| ID | Item | Severity | Trigger | Status | Basis |
 |---|---|---|---|---|
 | OI-060 | **Stage 6 validator is implemented with non-LLM checks only.** `validation/validator.py` runs the current rule-based checks and keeps validator-level errors separate from ordinary output-check failures. No LLM validator is used in this sprint. | — | — | Resolved (Sprint 5 implementation) | [SPEC] [PROJECT] |
 | OI-061 | **Validator failure semantics follow policy-defined failure modes.** Validator-level errors use `failure_modes.yaml`; fail-closed is determined from triggered policy rules, not the classifier's `HIGH_STAKES` category. Cross-reference: OI-046 establishes that `REQUIRE_HUMAN`, not classifier `HIGH_STAKES`, is the high-stakes confirmation mechanism. | Decision needed | Before finalizing Stage 6 failure semantics | Open | [SPEC] [JUDGMENT] |
