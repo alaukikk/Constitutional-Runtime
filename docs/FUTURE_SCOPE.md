@@ -119,55 +119,50 @@ assuming that a theoretically transparent interface does so.
 
 ---
 
-## FS-003 — Empirical Calibration of Routing and Validation
+## FS-003 — Empirical Calibration
 
 **Priority:** High  
-**Status:** Future  
+**Status:** Future extension  
 **Related:** OI-018, OI-029, OI-052, OI-062, OI-057
 
-Replace provisional thresholds and confidence assumptions with measurements from the golden set
-and independently labeled evaluation data.
+### In current scope
 
-Areas include:
+Sprints 5–8 already require calibration of routing and validation thresholds against the golden
+set and empirical evaluation data. This includes the existing OI-018, OI-029, OI-052, OI-057,
+and OI-062 triggers.
 
-- session risk thresholds;
-- cost thresholds;
-- classifier confidence floors;
-- classifier abstention thresholds;
-- capability floors;
-- validation confidence;
-- repair success probability; and
-- false-escalation/false-withholding rates.
+### Future extension
+
+After the current evaluation, extend calibration to broader workloads and longer-running
+deployments, including drift monitoring and recalibration policies for routing confidence,
+validation confidence, repair success, and false-escalation/false-withholding rates.
 
 ### Expected benefit
 
-Turns currently provisional routing parameters into empirically defensible operating points.
-
----
+Turns provisional operating points into empirically defensible and maintainable thresholds
+without incorrectly treating the current calibration work as deferred future scope.
 
 ## FS-004 — Independent Classifier Data and Fairness Evaluation
 
 **Priority:** High  
-**Status:** Future  
+**Status:** Future extension  
 **Related:** OI-051, OI-056, OI-057, OI-068
 
-Develop independently labeled, representative data for the small classifier and evaluate performance
-across relevant language and phrasing groups.
+### In current scope
 
-Evaluation should examine whether efficiency-oriented routing creates systematic differences in:
+Sprint 5 includes the first bias-monitor routing-outcome comparison across phrasing/language,
+and Sprints 7–8 require independently labeled evaluation data before empirical classifier claims.
 
-- classification accuracy;
-- abstention;
-- escalation frequency;
-- selected tier;
-- resource consumption; and
-- downstream validation outcomes.
+### Future extension
+
+Expand beyond the initial evaluation to representative multilingual datasets, repeated
+measurements, subgroup analysis, and longitudinal monitoring of routing accuracy, abstention,
+escalation frequency, selected tier, resource use, and downstream validation outcomes.
 
 ### Expected benefit
 
-Tests whether the efficiency layer itself introduces unfair or inconsistent treatment.
-
----
+Tests whether the efficiency layer introduces systematic disparities beyond the initial
+capstone evaluation.
 
 ## FS-005 — Resource-Aware Repair Selection
 
@@ -202,7 +197,7 @@ This should improve bounded repair; it should not become an excuse for unbounded
 
 **Priority:** Medium  
 **Status:** Future  
-**Related:** OI-062, OI-064, OI-065, OI-068
+**Related:** OI-062, OI-065, OI-068, OI-069
 
 Use accumulated audit data to study which requests, tiers, validators, and repair strategies
 actually succeed.
@@ -276,64 +271,51 @@ Makes model selection and resource comparisons representative of real deployment
 ## FS-009 — Empirical Energy and Cost Measurement
 
 **Priority:** High  
-**Status:** Future  
+**Status:** Future extension  
 **Related:** OI-005, OI-036, OI-045, OI-055
 
-Replace estimated resource figures with measurements from actual workloads and deployment
-conditions.
+### In current scope
 
-Measure at minimum where feasible:
+Sprints 7–8 already require real workload measurements and comparison against an always-direct
+LLM baseline. OI-005, OI-036, OI-045, and OI-055 track the current empirical-calibration boundary.
 
-- input/output tokens;
-- latency;
-- model calls;
-- dollar cost;
-- energy;
-- runtime overhead; and
-- uncertainty/error of estimates.
+### Future extension
 
-The central comparison should be:
-
-`resource cost of runtime + selected execution`
-versus
-`resource cost of a reasonable direct-AI baseline`.
+Extend measurement across additional models, hardware/software stacks, workloads, modalities,
+and deployment conditions. Measure uncertainty and error in energy, dollar, latency, token, and
+runtime-overhead estimates rather than treating one deployment's measurements as universal.
 
 ### Expected benefit
 
-Tests the project's central resource-efficiency claim rather than relying on catalog estimates.
-
----
+Tests the resource-efficiency claim across a broader operating envelope.
 
 ## FS-010 — Runtime Breakeven and Overhead Optimization
 
 **Priority:** High  
-**Status:** Future  
-**Related:** OI-005, OI-030, OI-055, evaluation framework
+**Status:** Future extension  
+**Related:** OI-005, OI-030, OI-055, Sprints 7–8
 
-Determine the workload conditions under which the constitutional runtime's own screening,
-classification, policy, validation, auditing, and routing overhead is outweighed by the AI
-resource savings it produces.
+### In current scope
 
-Potential questions:
+Sprints 7–8 already require running `cost/breakeven.py` and answering the central question of
+whether runtime overhead is outweighed by avoided AI inference cost.
 
-- When does routing overhead exceed the avoided inference cost?
-- Which request distributions make the runtime beneficial?
-- How does cache hit rate affect breakeven?
-- When does validation/repair overhead erase savings?
-- Which stages contribute the most runtime overhead?
+### Future extension
+
+Extend breakeven analysis to additional workload distributions, cache-hit rates, validation and
+repair overheads, deployment configurations, and optimization strategies. Study how the runtime
+can reduce its own overhead without weakening constitutional controls.
 
 ### Expected benefit
 
-Provides the strongest empirical test of the project's core thesis: the governance layer must
-save more resources than it consumes, at least for the workloads for which it is intended.
-
----
+Identifies the operating conditions where the runtime remains net-beneficial and where it should
+decline to intervene.
 
 ## FS-011 — Expanded Modality Routing
 
 **Priority:** Medium  
 **Status:** Future  
-**Related:** Stage 5, OI-? (cross-modal gap)
+**Related:** ARCHITECTURE Stage 5 #6; EXECUTION_PLAN Sprint 6
 
 Extend the routing/security model beyond text to image, audio, and other modalities.
 
@@ -355,7 +337,7 @@ modalities.
 
 **Priority:** Medium  
 **Status:** Future  
-**Related:** OI-013, OI-020, OI-021
+**Related:** OI-013, OI-020, OI-021, OI-040, OI-041
 
 Replace the current development-oriented session infrastructure with production-grade state
 management where deployment requirements justify it.
@@ -532,3 +514,31 @@ the appropriate Change Proposal and owner approval are required before implement
 
 The purpose of this document is therefore to preserve **what could make the system better later**
 without allowing that possibility to silently expand today's architecture.
+
+
+## FS-016 — Output-Side Policy Semantics
+
+**Priority:** Medium  
+**Status:** Future  
+**Related:** Stage 6, `guardrails/output_filter.py`, current Sprint 5 decision
+
+### Motivation
+
+The current Sprint 5 decision uses the output filter as a leakage/safety check rather than
+introducing a broader output-side constitutional policy engine. The existing policy gate remains
+the authoritative request-side constitutional control.
+
+### Future extension
+
+Study whether selected policy semantics should also be applied explicitly to generated output,
+including how output-side flags interact with validation, repair, withholding, and audit records.
+
+Any such extension must preserve the distinction between request-side policy enforcement and
+response validation, and must not silently change current failure semantics.
+
+### Expected benefit
+
+Provides a principled answer to whether some constitutional constraints should be evaluated
+symmetrically on inputs and outputs, rather than expanding output policy by implementation
+preference alone.
+
