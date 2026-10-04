@@ -317,6 +317,13 @@ decline to intervene.
 **Status:** Future  
 **Related:** ARCHITECTURE Stage 5 #6; EXECUTION_PLAN Sprint 6
 
+### In current scope
+
+Sprint 6 includes the minimal `triage/modality_router.py` implementation and the associated
+adversarial-testing work. This future entry does not defer that planned Sprint 6 deliverable.
+
+### Future extension
+
 Extend the routing/security model beyond text to image, audio, and other modalities.
 
 The extension should independently consider:
