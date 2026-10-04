@@ -156,12 +156,12 @@ Rendering failures currently fail open so execution can continue without feedfor
 
 ### Remaining Sprint 5 work
 
-- `api/main.py` still does **not** invoke Stage 6 validation after execution or route execution/validation failures through `escalation/repair_router.py`. This is the key end-to-end integration step.
+- `api/main.py` now invokes Stage 6 validation after execution and routes execution/validation failures through `escalation/repair_router.py`; the live wiring is covered by `tests/api/test_main_validation_wiring.py`.
 - `policy/governance/change_log.py` and `policy/governance/CODEOWNERS` are present but currently empty; governance enforcement is therefore not implemented yet.
 - `triage/bias_monitor.py` is present but currently empty; the first routing-outcome comparison across phrasing/language remains to be implemented.
-- Repair-router N1/N2 semantics are provisional implementation judgments and are tracked in `OPEN_ENDS.md` (`OI-065`, `OI-066`) rather than being promoted into the frozen architecture.
+- Repair-router N1 remains a provisional implementation judgment tracked under `OI-065`; the terminal `WITHHOLD` behavior is resolved under `OI-066` and remains outside the frozen architecture.
 
-**Verification boundary:** validator and repair-router tests are committed on `main`. No claim of end-to-end Sprint 5 verification is made until the live API wiring and remaining Sprint 5 modules are implemented and tested.
+**Verification boundary:** validator, repair-router, and live API validation/repair-wiring tests are committed on `main`. Sprint 5 is still not complete and no end-to-end Sprint 5 completion claim is made because governance enforcement and the bias monitor remain unimplemented. The owner-reported local full-suite result is tracked in `README.md`; it is not an independent verification claim.
 
 **Test target:** deliberately inject a validation failure and a Stage 5 execution error through the live pipeline and confirm the correct repair/escalation/withhold path fires for each, while preserving the frozen Stage 0→7 ordering.
 
