@@ -145,7 +145,7 @@ without incorrectly treating the current calibration work as deferred future sco
 ## FS-004 — Independent Classifier Data and Fairness Evaluation
 
 **Priority:** High  
-**Status:** Future extension  
+**Status:** Future  
 **Related:** OI-051, OI-056, OI-057, OI-068
 
 ### In current scope
@@ -271,7 +271,7 @@ Makes model selection and resource comparisons representative of real deployment
 ## FS-009 — Empirical Energy and Cost Measurement
 
 **Priority:** High  
-**Status:** Future extension  
+**Status:** Future  
 **Related:** OI-005, OI-036, OI-045, OI-055
 
 ### In current scope
@@ -292,7 +292,7 @@ Tests the resource-efficiency claim across a broader operating envelope.
 ## FS-010 — Runtime Breakeven and Overhead Optimization
 
 **Priority:** High  
-**Status:** Future extension  
+**Status:** Future  
 **Related:** OI-005, OI-030, OI-055, Sprints 7–8
 
 ### In current scope
