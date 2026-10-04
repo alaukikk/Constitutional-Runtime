@@ -159,3 +159,27 @@ def test_withheld_message_does_not_claim_review_or_correctness():
 
 def test_bound_constant_is_one():
     assert rr.MAX_ESCALATIONS == 1
+
+
+# ---- Sprint 5 wiring additions (OI-066) ----
+
+def test_escalation_carries_the_target_step_estimate_for_the_audit_record():
+    d = decide()
+    assert d.target_cost is not None
+    assert d.target_cost.tier is T.LLM_HIGH_REASONING and d.target_cost.model_name == d.target_model
+    assert d.target_cost.est_energy_wh > 0
+    assert decide(tier=T.LLM_HIGH_REASONING).target_cost is None   # a withhold carries none
+
+
+def test_every_withheld_message_says_nothing_about_humans_or_correctness():
+    for msg in (rr.WITHHELD_MESSAGE, rr.WITHHELD_MESSAGE_VALIDATOR_ERROR,
+                rr.WITHHELD_MESSAGE_EXECUTION_ERROR):
+        low = msg.lower()
+        assert "releasable response could not be established" in low
+        for word in ("human", "review", "verified", "correct"):
+            assert word not in low
+
+
+def test_validator_and_execution_messages_do_not_claim_checks_failed():
+    assert "did not pass" not in rr.WITHHELD_MESSAGE_VALIDATOR_ERROR.lower()
+    assert "did not pass" not in rr.WITHHELD_MESSAGE_EXECUTION_ERROR.lower()
