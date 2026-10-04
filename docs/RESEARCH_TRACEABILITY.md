@@ -54,9 +54,9 @@ table that makes that traceability checkable rather than asserted.
 | `guardrails/output_filter.py` | Sensitive Information Disclosure (OWASP) and the frozen architecture's requirement that security/validation boundaries apply across execution branches. |
 | `api/main.py` | Frozen architecture/specification and project integration work; no single paper is claimed as direct evidence for the API wiring itself. |
 | `session/session_state.py` | Identified during architecture stress-test, not from a single paper — a general multi-turn systems gap the papers don't directly cover |
-| `escalation/repair_router.py` | Synthesized from ChatGPT's original diagram + generalized during merge |
-| `validation/non_llm_checks.py` | Architecture-review gap ("who validates the validator") |
-| `audit/audit_log.py` | [SPEC] Stage 7 audit schema target; Stage 5 #8 (actual vs. estimated cost). [PROJECT] OI-058. The existing NIST citation (incident disclosure) stays marked "per traceability doc, not re-verified". |
+| `escalation/repair_router.py` | [SPEC] Stage 5 #7/#10 and Stage 6 #10 define repair-router invocation/decision space. [RESEARCH] OWASP LLM10:2025 Unbounded Consumption supports bounded resource/action exposure rather than uncontrolled repeated inference. [JUDGMENT] exact retry/skip/withhold rules (see OI-069) are project decisions, not claims established by the research. |
+| `validation/non_llm_checks.py` | [SPEC] Stage 6 #4 preference for non-LLM checks. [RESEARCH] NIST GenAI Profile MG-2.2-001 supports comparing/reviewing generated outputs against predefined guidelines; MG-2.2-005 supports output analysis for harmful content. |
+| `audit/audit_log.py` | [SPEC] Stage 7 audit schema target; Stage 5 #8 (actual vs. estimated cost). [PROJECT] OI-058, OI-071. |
 
 ---
 
@@ -82,3 +82,29 @@ answer:
 
 This is not a rhetorical framing — `cost/breakeven.py` exists
 specifically to produce a real, measured answer to this question.
+
+---
+
+## Validation, repair, and withholding — research basis
+
+### Validation
+
+The NIST GenAI Profile provides direct support for treating generated-output review as a risk-control activity. **MG-2.2-001** calls for comparing GAI outputs against predefined risk tolerances, guidelines, and principles and reviewing/testing generated content against them. **MG-2.2-005** calls for due diligence in analyzing GAI output for harmful content and related risks. These support the existence and purpose of Stage 6, but do not establish that the current non-LLM checks prove factual correctness.
+
+### Human oversight and feedback
+
+NIST **GV-3.2-003/004** addresses acceptable-use/refusal policies and user feedback/recourse, while **MS-3.3-002/005** addresses studying end-user interaction and recording structured feedback. These support future human-review/recourse and feedback extensions; they do not imply that the current runtime has a human-review workflow.
+
+The supplied *A Review of Prominent Paradigms for LLM-Based Agents* discusses evaluator/feedback workflows in agent systems. This supports the general evaluate → feedback/repair pattern used by the repair router, but not the project's exact retry limits or terminal state.
+
+### Why WITHHOLD is the current terminal state
+
+The current OI-066 decision is a **project/architecture decision informed by research, not a direct prescription from a paper**. NIST MG-2.2-001 supports preventing an unreviewed/failed output from being treated as though it passed the defined review criteria. The current system has no implemented human-review/release workflow, so WITHHOLD is the honest terminal state rather than implying human approval that did not occur.
+
+The supplied energy/inference sources establish that inference resource use varies substantially with workload, model, hardware, and software conditions. That supports bounded repair as a resource-efficiency concern, but does not prove the exact one-escalation rule.
+
+OWASP **LLM10:2025 Unbounded Consumption** identifies excessive/uncontrolled inference as a resource and cost risk and recommends controls such as resource allocation management, timeouts, throttling, and limits on queued/total actions. This supports treating repair bounds as a security/resource concern. It does **not** establish the project's exact repair-router rules.
+
+Accordingly:
+- **[RESEARCH]** supports validation as a control, human feedback/recourse as a useful future capability, and bounded resource use as a concern.
+- **[JUDGMENT]** covers the exact WITHHOLD terminal behavior and the repair-router details tracked under OI-069.
