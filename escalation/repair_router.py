@@ -55,7 +55,7 @@ from typing import Optional, Sequence
 from cost.estimator import estimate_tier
 from cost.model_registry import MODEL_CATALOG, ModelInfo
 from interface.feedforward import HIGH_COST_USD, HIGH_COST_WH
-from policy.schemas import MethodTier
+from policy.schemas import MethodTier, TierCostEstimate
 from triage.decision import RoutingPlan
 from validation.validator import ValidationResult
 
@@ -66,10 +66,20 @@ MAX_ESCALATIONS = 1   # N1, provisional
 # Validation checks whose failure is a safety signal, not a capability gap.
 NON_REPAIRABLE_CHECKS = frozenset({"no_safety_leakage"})
 
-# Shown when an answer is withheld. Deliberately says nothing about human
-# review (none exists yet) and nothing about correctness.
-WITHHELD_MESSAGE = ("This answer did not pass automated checks and could not be "
-                    "repaired within the allowed limits, so it has been withheld.")
+# Shown when an answer is withheld (OI-066: an explicit non-success outcome that
+# says a releasable response could not be established). None of these claim
+# that a human reviewed anything, and none claim correctness. Which one applies
+# depends on what actually went wrong, so the text never says "did not pass
+# checks" when the checks never ran.
+WITHHELD_MESSAGE = ("A releasable response could not be established: the generated answer did "
+                    "not pass automated checks and could not be repaired within the allowed "
+                    "limits, so it has been withheld.")
+WITHHELD_MESSAGE_VALIDATOR_ERROR = (
+    "A releasable response could not be established: the automated checks could not be "
+    "completed for this answer, so it has been withheld.")
+WITHHELD_MESSAGE_EXECUTION_ERROR = (
+    "A releasable response could not be established: generating an answer failed and could "
+    "not be retried within the allowed limits.")
 
 _BELOW_LLM = frozenset({MethodTier.CACHE, MethodTier.DETERMINISTIC,
                         MethodTier.SMALL_CLASSIFIER, MethodTier.RAG_SMALL_MODEL})
@@ -94,6 +104,7 @@ class RepairDecision:
     target_model: Optional[str] = None
     worst_case_wh_high: Optional[float] = None   # cumulative, including the target
     worst_case_usd: Optional[float] = None
+    target_cost: Optional[TierCostEstimate] = None   # estimate for the target step alone (for the audit record)
 
 
 def _withhold(reason: str, detail: str = "") -> RepairDecision:
@@ -223,4 +234,4 @@ def _decide(plan, tier_used, kind, request_text, validation,
         RepairAction.ESCALATE, "escalate_once",
         f"{kind.value} on {tier_used.value}; escalating once to {target.value} ({skip_note}); "
         f"worst-case cumulative {total_wh:.3f} Wh / ${total_usd:.4f}",
-        target, target_model, total_wh, total_usd)
+        target, target_model, total_wh, total_usd, target_est.tier_estimate)
