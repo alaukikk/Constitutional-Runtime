@@ -104,7 +104,7 @@ The current OI-066 decision is a **project/architecture decision informed by res
 
 The supplied energy/inference sources establish that inference resource use varies substantially with workload, model, hardware, and software conditions. That supports bounded repair as a resource-efficiency concern, but does not prove the exact one-escalation rule.
 
-OWASP **LLM10:2025 Unbounded Consumption** identifies excessive/uncontrolled inference as a resource and cost risk and recommends controls such as resource allocation management, timeouts, throttling, and limits on queued/total actions. This supports treating repair bounds as a security/resource concern. It does **not** establish the project's exact repair-router rules.
+OWASP **LLM10:2025 Unbounded Consumption** identifies excessive/uncontrolled inference as a resource and cost risk and LLM10 is identified as a risk (blurb only), control recommendations are external, and bounded resource use is supported by the energy sources instead. This supports treating repair bounds as a security/resource concern. It does **not** establish the project's exact repair-router rules.
 
 Accordingly:
 - **[RESEARCH]** supports validation as a control, human feedback/recourse as a useful future capability, and bounded resource use as a concern.
