@@ -82,13 +82,15 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 **Sprint 4 — Graduated routing + feedforward: IMPLEMENTATION COMPLETE; carry-forwards tracked in `docs/OPEN_ENDS.md`.**
 
+**Sprint 5 — Escalation, validation, governance: IN PROGRESS.** Validator/non-LLM checks and the repair-router decision module are implemented and tested. Live validation/repair API wiring, governance enforcement, and bias monitoring remain open.
+
 The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. The Stage 4 feedforward layer is also committed and integrated, providing templated route/outcome text and a high-cost confirmation gate. The API exposes a `feedforward` response field alongside the confirmation fields where applicable. The small-classifier implementation and retrieval prototype are now also committed; the complete RAG generation path is intentionally not yet implemented.
 
-The latest full-suite run reports **414 passed, 1 skipped (local run, Windows, Python 3.11.7)**. The skipped test is the Windows symlink test.
+The latest previously reported full-suite run was **414 passed, 1 skipped (local run, Windows, Python 3.11.7)**. The skipped test is the Windows symlink test. Sprint 5 changes have been reviewed from the current `main` snapshot; no new full-suite result is asserted here.
 
 Carry-forwards from Sprint 4 include the `CLASSIFICATION` eligibility decision, classifier calibration/evaluation, the complete RAG generation path, empirical resource measurements, and the remaining feedforward/user-study decisions. These are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
 
-The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, feedforward/cost-gate integration, small classifier, and retrieval prototype. Sprint 4 implementation and automated test verification are complete; the remaining Sprint 4 open items are policy, calibration, empirical-evaluation, and research questions tracked in `docs/OPEN_ENDS.md`.
+The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, feedforward/cost-gate integration, small classifier, and retrieval prototype. Sprint 4 implementation and automated test verification are complete; Sprint 5 is now in progress. The validator/non-LLM checks and repair-router tests are committed, while live validation/repair integration, governance enforcement, and bias monitoring remain tracked in `docs/OPEN_ENDS.md`.
 
 ## Root files
 - `README.md` — project overview and repository map
