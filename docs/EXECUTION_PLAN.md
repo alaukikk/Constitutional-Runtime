@@ -145,14 +145,25 @@ Rendering failures currently fail open so execution can continue without feedfor
 4. Carry forward the empirical resource, fairness, human-agency, and cost-accounting work into the appropriate later evaluation sprint (`OI-055`–`OI-059`).
 
 **Verification status:** the planner, API integration, human-checkpoint implementation, feedforward implementation, small-classifier implementation, synthetic seed, retrieval prototype, and associated tests are committed on `main`. The latest full-suite run reports **414 tests passed, 1 skipped (local run, Windows, Python 3.11.7)**. The skipped test is the Windows symlink test. Sprint 4 automated test verification is complete; carry-forwards remain tracked in `OPEN_ENDS.md`.
-## Sprint 5 — Escalation, validation, governance
+## Sprint 5 — Escalation, validation, governance (IN PROGRESS)
 
-- `escalation/repair_router.py` (cross-cutting) — real stage-to-stage escalation, not just a post-validation loop. This is also where the deferred `LLM_HIGH_REASONING` escalation path belongs.
-- `validation/validator.py`, `validation/non_llm_checks.py` (Stage 6) — with the "validator is not privileged" rule enforced (if LLM-based, logged/costed identically to primary calls).
-- `policy/governance/change_log.py`, `CODEOWNERS` — enforced on `constitution.yaml` PRs.
-- `triage/bias_monitor.py` — first real routing-outcome comparison across phrasing/language.
+### Implemented
 
-**Test:** deliberately inject a failure at each stage (bad policy match, failed validation, execution error) and confirm the correct repair/escalation path fires for each.
+- `validation/non_llm_checks.py` — cheap rule-based output checks: non-empty output, size/control-character checks, and the existing output safety-leakage filter.
+- `validation/validator.py` — Stage 6 validator using the non-LLM checks. Validator-level errors follow the existing `failure_modes.yaml` policy semantics; the implementation does not consult the classifier's `HIGH_STAKES` category when deciding fail-open/fail-closed behavior.
+- `escalation/repair_router.py` — cross-cutting repair decision module. It supports validation failures and execution errors, escalates strictly upward, permits at most one escalation, checks cumulative worst-case estimates against the existing high-cost limits, and withholds when repair is unavailable or unsafe.
+- `tests/escalation/test_repair_router.py` — coverage for target selection, the one-escalation bound, cumulative cost ceiling, cap-check failures, safety-leakage/non-retry cases, validator errors, malformed inputs, and withholding semantics.
+
+### Remaining Sprint 5 work
+
+- `api/main.py` still does **not** invoke Stage 6 validation after execution or route execution/validation failures through `escalation/repair_router.py`. This is the key end-to-end integration step.
+- `policy/governance/change_log.py` and `policy/governance/CODEOWNERS` are present but currently empty; governance enforcement is therefore not implemented yet.
+- `triage/bias_monitor.py` is present but currently empty; the first routing-outcome comparison across phrasing/language remains to be implemented.
+- Repair-router N1/N2 semantics are provisional implementation judgments and are tracked in `OPEN_ENDS.md` (`OI-065`, `OI-066`) rather than being promoted into the frozen architecture.
+
+**Verification boundary:** validator and repair-router tests are committed on `main`. No claim of end-to-end Sprint 5 verification is made until the live API wiring and remaining Sprint 5 modules are implemented and tested.
+
+**Test target:** deliberately inject a validation failure and a Stage 5 execution error through the live pipeline and confirm the correct repair/escalation/withhold path fires for each, while preserving the frozen Stage 0→7 ordering.
 
 ## Sprint 6 — Modality awareness, hardened adversarial testing
 
