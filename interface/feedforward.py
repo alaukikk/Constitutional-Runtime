@@ -42,6 +42,12 @@ Decisions (kept inside the frozen Stage 4 spec; no structural change):
    every rung that might run, so uncertainty cannot push a request under the
    limit. The limits below are PLACEHOLDERS (see OPEN_ENDS); with the current
    catalog they trip only for the largest model or very large inputs.
+
+6. (Sprint 5) A repaired answer can come from a tier that was not in the
+   preview (the one-time repair escalation, escalation/repair_router.py).
+   escalation_outcome_text() says so in the attached outcome. This is an
+   after-the-fact disclosure, not a preview of the possible escalation; that
+   gap is tracked as an open item.
 """
 from __future__ import annotations
 
@@ -152,6 +158,21 @@ def outcome_text(plan: RoutingPlan, tier_used: MethodTier) -> str:
             f"(rough estimates, not measurements).")
 
 
+def escalation_outcome_text(failed_tier: MethodTier, target_tier: MethodTier,
+                            model_name: Optional[str], est_energy_wh: float,
+                            est_dollar_cost: float) -> str:
+    """Outcome text for an answer produced by the one-time repair escalation.
+
+    The target may not be on the plan's ladder (LLM_HIGH_REASONING never is), so
+    this takes the escalation's own figures instead of looking the tier up.
+    """
+    return (f"Answered by: {_label(target_tier, model_name)}, after the first answer "
+            f"(from the {_LABELS[failed_tier]}) could not be released and was repaired "
+            f"once. Estimated cost of this step alone: about {est_energy_wh:.4f} Wh and "
+            f"${est_dollar_cost:.4f} (rough estimates, not measurements); the first "
+            f"step's cost is not included.")
+
+
 def safe_preview(plan: RoutingPlan) -> Optional[str]:
     """Fail OPEN: a rendering error yields None, never an exception."""
     try:
@@ -166,6 +187,18 @@ def safe_outcome(plan: RoutingPlan, tier_used: MethodTier) -> Optional[str]:
         return outcome_text(plan, tier_used)
     except Exception:
         log.exception("feedforward outcome failed; proceeding without it")
+        return None
+
+
+def safe_escalation_outcome(failed_tier: MethodTier, target_tier: MethodTier,
+                            model_name: Optional[str], est_energy_wh: float,
+                            est_dollar_cost: float) -> Optional[str]:
+    """Fail OPEN, like the other renderers."""
+    try:
+        return escalation_outcome_text(failed_tier, target_tier, model_name,
+                                       est_energy_wh, est_dollar_cost)
+    except Exception:
+        log.exception("feedforward escalation outcome failed; proceeding without it")
         return None
 
 
