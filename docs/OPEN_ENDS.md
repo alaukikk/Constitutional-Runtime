@@ -37,7 +37,7 @@ dropped items stay, with a one-line note, because the history is useful for the 
 ## From Sprint 1 (Skeleton)
 
 | ID | Item | Severity | Trigger | Status | Basis |
-|---|---|---|---|---|---|---|
+|---|---|---|---|---|---|
 | OI-001 | **Verify repo state vs. plan.** Sprint 3 implementation was initially present only in the Claude/local history while `main` still had empty core files. The repository discrepancy has now been resolved: `session/session_state.py`, `cost/estimator.py`, `tiers/model_selector.py`, their tests, and the `api/main.py` integration are committed to `main`. | — | — | Resolved (Sprint 3 closure) | [SPEC] [PROJECT] |
 | OI-002 | **Stage 0 screen is basic regex.** The adversarially-tested classifier is a later-sprint, security-owned item. | Should-fix | Sprint 6 (adversarial hardening) | Open | [SPEC] [PROJECT] |
 | OI-003 | **Stage 1 is keyword matching only.** Interface (`list[PolicyFlag]`) is meant to stay stable when matching improves. | Should-fix | Sprint 5–6 | Open | [SPEC] [PROJECT] |
