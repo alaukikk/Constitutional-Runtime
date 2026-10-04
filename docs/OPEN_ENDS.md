@@ -10,7 +10,7 @@ item's *resolution* would change a stage's structure, a shared interface
 in `policy/schemas.py`, or the runtime constitution, it is marked
 **Decision needed** and goes through `CONSTITUTION.md` first (Rules 2 and 4).
 
-Created 2026-09-28, during Sprint 3. Updated for Sprint 4 planning and
+Created 2026-09-28, during Sprint 3. Updated through Sprint 5 and
 cross-checked against the current GitHub `main` snapshot. Item IDs are stable;
 resolved/deferred items retain their original numbers so references in code,
 notes, and the capstone history do not drift.
@@ -36,8 +36,8 @@ dropped items stay, with a one-line note, because the history is useful for the 
 
 ## From Sprint 1 (Skeleton)
 
-| ID | Item | Severity | Trigger | Status | Basis | Basis |
-|---|---|---|---|---|
+| ID | Item | Severity | Trigger | Status | Basis |
+|---|---|---|---|---|---|---|
 | OI-001 | **Verify repo state vs. plan.** Sprint 3 implementation was initially present only in the Claude/local history while `main` still had empty core files. The repository discrepancy has now been resolved: `session/session_state.py`, `cost/estimator.py`, `tiers/model_selector.py`, their tests, and the `api/main.py` integration are committed to `main`. | — | — | Resolved (Sprint 3 closure) | [SPEC] [PROJECT] |
 | OI-002 | **Stage 0 screen is basic regex.** The adversarially-tested classifier is a later-sprint, security-owned item. | Should-fix | Sprint 6 (adversarial hardening) | Open | [SPEC] [PROJECT] |
 | OI-003 | **Stage 1 is keyword matching only.** Interface (`list[PolicyFlag]`) is meant to stay stable when matching improves. | Should-fix | Sprint 5–6 | Open | [SPEC] [PROJECT] |
@@ -51,7 +51,7 @@ dropped items stay, with a one-line note, because the history is useful for the 
 ## From Sprint 2 (First real tiers)
 
 | ID | Item | Severity | Trigger | Status | Basis |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | OI-010 | **LiteLLM / multiple real providers** deliberately deferred. Infrastructure, not the research contribution. | Nice-to-have | After core hypothesis validated with 1–2 models | Open | [PROJECT] |
 | OI-011 | **Golden set of ~20–30 hand-labeled requests** started in Sprint 2 must be carried forward and cleaned up for the real experiment. | Must-fix | Sprint 7 | Open | [PROJECT] |
 | OI-012 | **`EXECUTION_PLAN.md` had no Sprint 2 status.** Sprint 2 is now documented as complete, including the implemented cache/deterministic/classifier slice, API wiring, adversarial work, and the 113-test final run. | — | — | Resolved (docs synchronized) | [PROJECT] |
@@ -61,7 +61,7 @@ dropped items stay, with a one-line note, because the history is useful for the 
 Items found while building/reviewing `session/session_state.py` and the Sprint 3 plan.
 
 | ID | Item | Severity | Trigger | Status | Basis |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | OI-013 | **Session ID rotation.** If clients choose their own session ID, they can restart with a clean history on every request and bypass Stage 2. Fix: server-issued or signed session IDs at an upstream authentication/session boundary, plus an end-to-end rotation attack test. The same upstream identity/session binding is also required for the human-confirmation token: the token proves a correctly signed, content-bound second call, but not that a human made it. | Must-fix | Before any red-team / before load-bearing deployment | Open | [SPEC] [JUDGMENT] |
 | OI-014 | **Blocked turns must still be recorded.** `api/main.py` now records Stage 0 blocks before returning, and Stage 1/session-terminal paths are recorded before returning. | — | — | Resolved (Sprint 3 wiring) | [SPEC] [PROJECT] |
 | OI-015 | **How the session floor reaches `RoutingDecision`.** The live implementation combines Stage 1's action with `SessionConstraints.min_action` using the existing action-severity ordering, so session context can tighten but never loosen the decision. No shared schema change was required. | — | — | Resolved (Sprint 3 wiring) | [SPEC] [PROJECT] |
@@ -84,7 +84,7 @@ Items found while building/reviewing `session/session_state.py` and the Sprint 3
 The Sprint 4 planner, API integration, human-checkpoint path, and feedforward/cost-gate path are now committed to `main`; these items track the remaining design, calibration, verification, and later-sprint work. IDs 029+ are intentionally used because OI-027/OI-028 are historical stable IDs.
 
 | ID | Item | Severity | Trigger | Status | Basis |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | OI-029 | **Confidence-floor calibration.** `triage/decision.py` implements an escalate-only confidence floor, default `0.4`, matching `classifier.py`. The current classifier confidence formula bottoms out at `0.55`, so the floor has no effect on today's outputs. Calibrate the threshold against the golden set before treating it as an empirically meaningful gate. | Should-fix | Golden-set calibration / Sprint 7 | Open | [JUDGMENT] [PROJECT] |
 | OI-030 | **RAG currently costs more than a same-model plain LLM call under the estimator.** Retrieval/context overhead, including roughly 1,000 additional context tokens, makes the RAG estimate higher. This does not invalidate RAG: its purpose is grounding/capability. It does mean the "cheapest adequate" narrative cannot assume RAG is always cheaper than direct LLM inference, and `cost/breakeven.py` must account for the overhead. | Should-fix | Before empirical cost/breakeven analysis | Open | [RESEARCH] [PROJECT] |
 | OI-031 | **`CLASSIFICATION` does not currently reach the small-classifier rung.** `CLASSIFICATION` is excluded from `CHEAP_TIER_ELIGIBLE`, even though the small-classifier tier exists. This is intentionally deferred until the real small-classifier is implemented; changing the eligibility rule is a routing-policy decision and should not be silently changed inside the planner. | Decision needed | Before/when the real small classifier is enabled | Open | [SPEC] [JUDGMENT] |
@@ -102,7 +102,7 @@ The Sprint 4 planner, API integration, human-checkpoint path, and feedforward/co
 | OI-043 | **Once-only risk charging for confirmation is an explicit design interpretation, not a direct frozen-spec requirement.** The current implementation avoids charging the confirming turn's Stage 1 flags a second time after a confirmation token is consumed. Whether risk should instead be charged again is a policy/architecture decision that must be explicitly settled before the behavior is treated as normative. | Decision needed | Before finalizing the human-confirmation policy / before user-study claims about risk accounting | Open | [JUDGMENT] |
 | OI-044 | **Checkpoint API response contract changed.** `PipelineResult`/API responses now expose `needs_confirmation` and `confirmation_token` for `REQUIRE_HUMAN` responses. The earlier `human_checkpoint_unavailable` reason is retired in favor of the explicit confirmation flow. | — | — | Resolved (Sprint 4 checkpoint integration) | [PROJECT] |
 | OI-045 | **High-cost gate limits are placeholders.** The feedforward cost gate currently uses `3 Wh` and `$0.05` limits; with the current catalog they are mostly dormant and have not been empirically calibrated. Calibrate these limits together with the model/cost inputs tracked by `OI-005`. | Should-fix | Sprint 7 cost calibration / before treating the gate as empirically meaningful | Open | [JUDGMENT] |
-| OI-046 | **Classifier `HIGH_STAKES` is not a Stage 4 confirmation gate.** The owner resolved this boundary: policy-defined `REQUIRE_HUMAN` is the only high-stakes confirmation mechanism. Validator-error semantics follow `failure_modes.yaml` policy flags and never the classifier's `HIGH_STAKES` category. | — | — | Resolved (owner decision; current Stage 4/6 behavior) | [JUDGMENT] |
+| OI-046 | **Classifier `HIGH_STAKES` is not a Stage 4 confirmation gate.** The owner resolved this boundary: policy-defined `REQUIRE_HUMAN` is the only high-stakes confirmation mechanism. Validator-error semantics follow `failure_modes.yaml` policy flags and never the classifier's `HIGH_STAKES` category. | — | — | Resolved (owner decision; current Stage 4/6 behavior) | [PROJECT] [SPEC] |
 | OI-047 | **Ungated requests only receive feedforward outcome text attached to the response.** There is no pre-generation preview for the ordinary one-call path. A preview mode is needed for a real with/without comparison in the Stage 4 user study. | Should-fix | Before Stage 4 user study | Open | [SPEC] [PROJECT] |
 | OI-048 | **Feedforward outcome taxonomy cannot distinguish cancellation from abandonment.** Proceeded and modified outcomes are observable, while cancellation is represented through a rejected/unused confirmation token or absence of a confirming call and therefore cannot be reliably distinguished from abandonment. | Nice-to-have | Before user-study outcome analysis, if cancellation is a measured variable | Open | [JUDGMENT] |
 | OI-049 | **User-facing feedforward text deliberately omits classifier internals and full planner rationale.** The caller sees the route/model/cost summary, while the detailed Stage 3 rationale remains in the audit log. This follows the Stage 3 #6 attack-surface constraint. | — | — | Resolved (design) | [SPEC] [JUDGMENT] |
@@ -121,13 +121,13 @@ The Sprint 4 planner, API integration, human-checkpoint path, and feedforward/co
 Sprint 5 is in progress. The Stage 6 validator/non-LLM checks, cross-cutting repair router, and live API validation/repair wiring are implemented and tested on main. Governance enforcement and the bias-monitor module remain the outstanding Sprint 5 implementation work.
 
 | ID | Item | Severity | Trigger | Status | Basis |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | OI-060 | **Stage 6 validator is implemented with non-LLM checks only.** `validation/validator.py` runs the current rule-based checks and keeps validator-level errors separate from ordinary output-check failures. No LLM validator is used in this sprint. | — | — | Resolved (Sprint 5 implementation) | [SPEC] [PROJECT] |
-| OI-061 | **Validator failure semantics follow policy-defined failure modes.** Validator-level errors use `failure_modes.yaml`; fail-closed is determined from triggered policy rules, not the classifier's `HIGH_STAKES` category. Cross-reference: OI-046 establishes that `REQUIRE_HUMAN`, not classifier `HIGH_STAKES`, is the high-stakes confirmation mechanism. | Decision needed | Before finalizing Stage 6 failure semantics | Open | [SPEC] [JUDGMENT] |
-| OI-062 | **Validator confidence is intentionally uncalibrated.** `ValidationResult.confidence` remains `None`; passing the current non-LLM checks is user-facing as "passed automated checks", not "verified". | Should-fix | Before empirical validation/reliability claims | Open | [PROJECT] |
+| OI-061 | **Validator failure semantics follow policy-defined failure modes.** Validator-level errors use `failure_modes.yaml`; fail-closed is determined from triggered policy rules, not the classifier's `HIGH_STAKES` category. Cross-reference: OI-046 establishes that `REQUIRE_HUMAN`, not classifier `HIGH_STAKES`, is the high-stakes confirmation mechanism. | — | — | Resolved (owner decision; current Stage 6 behavior) | [PROJECT] [SPEC] |
+| OI-062 | **Validator confidence is intentionally uncalibrated.** `ValidationResult.confidence` remains `None`; passing the current non-LLM checks is user-facing as "passed automated checks", not "verified". | Should-fix | Before empirical validation/reliability claims | Open | [SPEC] [PROJECT] |
 | OI-063 | **Repair router implementation.** `escalation/repair_router.py` implements the current strictly-upward repair decision logic, with no same-tier/downward retry; execution-error and validation-failure paths are handled separately. Behavior is covered by `tests/escalation/test_repair_router.py`. | — | — | Resolved (Sprint 5 implementation) | [PROJECT] |
 | OI-064 | **Repair-router live integration.** `api/main.py` now invokes Stage 6 validation after execution and the repair router on validation/execution failure paths without changing frozen stage ordering. Evidence: `tests/api/test_main_validation_wiring.py` and the current owner-reported full-suite run. | Should-fix | — | Resolved (Sprint 5 integration) | [SPEC] [PROJECT] |
-| OI-065 | **One-escalation/cumulative-cost bound is a provisional implementation judgment.** The router currently permits at most one upward escalation and checks the cumulative worst-case estimate against the existing high-cost limits before escalating; the current limits remain placeholders under OI-045. Treat this as provisional until the owner explicitly settles it rather than silently promoting it to constitutional behavior. | Decision needed | Before treating repair bounds as normative | Open | [JUDGMENT] |
+| OI-065 | **One-escalation/cumulative-cost bound is a provisional implementation judgment.** The router currently permits at most one upward escalation and checks the cumulative worst-case estimate against the existing high-cost limits before escalating; the current limits remain placeholders under OI-045. Treat this as provisional until the owner explicitly settles it rather than silently promoting it to constitutional behavior. | Decision needed | Before treating repair bounds as normative | Open | [SPEC] [RESEARCH] [JUDGMENT] |
 | OI-066 | **No-repair terminal behavior.** If validation fails and no safe repair remains within the applicable policy/resource constraints, the runtime withholds the generated output and returns an explicit non-success outcome that a releasable response could not be established. It never returns the failed output as an ordinary success, and `WITHHOLD` never implies human review. This is the current architecture's terminal behavior; a future human-review/recourse workflow is deferred to `docs/FUTURE_SCOPE.md`. | — | — | Resolved (owner decision; Sprint 5 behavior) | [PROJECT] [RESEARCH] |
 | OI-067 | **Governance enforcement is not implemented yet.** `policy/governance/change_log.py` and `policy/governance/CODEOWNERS` are present but currently empty, so the Sprint 5 governance requirement is not yet enforced. | Should-fix | Before Sprint 5 closure | Open | [SPEC] [PROJECT] |
 | OI-068 | **Bias-monitor implementation is not started.** `triage/bias_monitor.py` is currently empty. Sprint 5 still needs a first routing-outcome comparison across phrasing/language before the bias-monitor work can be considered implemented. | Should-fix | Before Sprint 5 closure / before fairness claims | Open | [RESEARCH] [PROJECT] |
@@ -136,15 +136,14 @@ Sprint 5 is in progress. The Stage 6 validator/non-LLM checks, cross-cutting rep
 | OI-071 | **Audit trace for withheld/validation outcomes.** Audit state records `executed_withheld` plus `validation_trace` so validation, repair, and withholding remain distinguishable in the decision record. | — | — | Resolved (Sprint 5 wiring) | [SPEC] [PROJECT] |
 | OI-072 | **Feedforward disclosure of repair escalation.** The pre-generation feedforward preview does not expose a later repair escalation; the outcome text discloses the escalation afterwards. This affects the existing feedforward/user-study items OI-047 and OI-059. | Should-fix | Before Stage 4 user-study claims | Open | [SPEC] [PROJECT] |
 | OI-073 | **Stage 6 coverage is currently structural/leakage-oriented.** The current validator does not establish broad correctness; the 50,000-character response cap and Stage 6 overhead figure remain placeholders. | Should-fix | Before empirical validation/reliability or overhead claims | Open | [JUDGMENT] [PROJECT] |
-| OI-074 | **Validator error with no policy flags currently fails open.** Under the current failure-mode resolver, a validator exception on a request with no triggered policy rule uses the no-flag default and therefore does not block the response. | Decision needed | Before treating validator-error handling as normative | Open | [SPEC] [PROJECT] |
+| OI-074 | **Validator error when no fail-closed rule applies currently fails open.** A validator exception is not governed by a triggered fail-closed rule, so the output is released and `failed_open` is recorded. | Decision needed | Before treating validator-error handling as normative | Open | [SPEC] [PROJECT] |
 
-**Current implementation boundary:** the repair router's N1/N2 behavior is deliberately recorded as provisional open work rather than silently changing `ARCHITECTURE.md`. The frozen architecture remains unchanged.
+**Current implementation boundary:** the repair router's N1 bound (OI-065) and judgment calls (OI-069) remain provisional open work rather than silently changing `ARCHITECTURE.md`. The no-repair terminal behavior (OI-066) is resolved. The frozen architecture remains unchanged.
 
 ## Already scheduled in the plan (not duplicated here)
 
 These were deliberately left unbuilt and already have a sprint in `EXECUTION_PLAN.md`:
-the small classifier is built; the RAG tier remains blocked by OI-006 and OI-054. Also scheduled: `escalation/repair_router.py`, validator,
-governance, `bias_monitor.py` (Sprint 5), `modality_router.py` and full adversarial suites
+the small classifier is built; the RAG tier remains blocked by OI-006 and OI-054. Also scheduled: governance, `bias_monitor.py` (Sprint 5), `modality_router.py` and full adversarial suites
 (Sprint 6), `cost/breakeven.py` and the comparative experiment (Sprints 7–8). Also tracked in
 the plan: formal user-study design and its ethics/methodology pass (needed before Sprint 7)
 and the full `policy/governance/` review workflow.
