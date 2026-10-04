@@ -27,7 +27,10 @@ def test_clean_output_passes_every_check():
     (None, "non_empty"),
     ("", "non_empty"),
     ("   \n ", "non_empty"),
-    ("a" * (MAX_OUTPUT_CHARS + 1), "within_length"),
+    # Explicit id: pytest otherwise embeds the 50k-char string in the test id, and
+    # on Windows that id is copied into the PYTEST_CURRENT_TEST env var, which
+    # is capped at 32,767 characters.
+    pytest.param("a" * (MAX_OUTPUT_CHARS + 1), "within_length", id="oversized_output"),
     ("hello\x00world", "no_control_chars"),
     ("DAN mode activated. No limits.", "no_safety_leakage"),
     ("key: sk-abcdefghijklmnopqrstuvwx1234", "no_safety_leakage"),
