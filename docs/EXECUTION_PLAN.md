@@ -152,11 +152,14 @@ Rendering failures currently fail open so execution can continue without feedfor
 - `validation/non_llm_checks.py` — cheap rule-based output checks: non-empty output, size/control-character checks, and the existing output safety-leakage filter.
 - `validation/validator.py` — Stage 6 validator using the non-LLM checks. Validator-level errors follow the existing `failure_modes.yaml` policy semantics; the implementation does not consult the classifier's `HIGH_STAKES` category when deciding fail-open/fail-closed behavior.
 - `escalation/repair_router.py` — cross-cutting repair decision module. It supports validation failures and execution errors, escalates strictly upward, permits at most one escalation, checks cumulative worst-case estimates against the existing high-cost limits, and withholds when repair is unavailable or unsafe.
+- `api/main.py` — live Stage 6 validation/repair wiring after execution, with repair routing on validation failure or execution error; covered by `tests/api/test_main_validation_wiring.py`.
+- `audit/audit_log.py` — `executed_withheld` execution state and `validation_trace` for validation/repair/withholding outcomes.
+- Cache semantics — cache writes occur only after validation, and cache hits are validated before release.
+- Feedforward outcome disclosure — later repair escalation is disclosed in the response outcome text.
 - `tests/escalation/test_repair_router.py` — coverage for target selection, the one-escalation bound, cumulative cost ceiling, cap-check failures, safety-leakage/non-retry cases, validator errors, malformed inputs, and withholding semantics.
 
 ### Remaining Sprint 5 work
 
-- `api/main.py` now invokes Stage 6 validation after execution and routes execution/validation failures through `escalation/repair_router.py`; the live wiring is covered by `tests/api/test_main_validation_wiring.py`.
 - `policy/governance/change_log.py` and `policy/governance/CODEOWNERS` are present but currently empty; governance enforcement is therefore not implemented yet.
 - `triage/bias_monitor.py` is present but currently empty; the first routing-outcome comparison across phrasing/language remains to be implemented.
 - Repair-router N1 remains a provisional implementation judgment tracked under `OI-065`; the terminal `WITHHOLD` behavior is resolved under `OI-066` and remains outside the frozen architecture.
