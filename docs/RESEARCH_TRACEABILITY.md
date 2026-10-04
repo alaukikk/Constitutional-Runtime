@@ -17,7 +17,7 @@ table that makes that traceability checkable rather than asserted.
 | A Review of Prominent Paradigms for LLM-Based Agents | Names "is this too simple to decompose" as an unresolved gap in existing agent frameworks — the literal justification for `triage/decision.py`'s necessity check. Also the source of the Policy/Planning/Tools/Retrieval/Feedback decomposition inside the AI execution branch. |
 | AI Risk Management Framework (NIST GenAI Profile) | Source of the risk category taxonomy (`RiskCategory` enum), the Govern/Map/Measure/Manage structure behind `policy/`, and the "automation bias" risk that justifies `interface/human_checkpoint.py`. |
 | Jailbreak Attacks and Defenses Against LLMs | Attacks are cheap and model-knowledge-agnostic and evolving faster than defenses — justifies filtering upstream (Stage 0) rather than relying on model alignment alone, and justifies adversarially testing the *router/classifier*, not just the LLM. |
-| Prompt Injection (OWASP LLM Top 10) | "Unbounded Consumption" (LLM10:2025) is the vulnerability the entire tiered-execution design exists to close. Also flags cross-modal injection — justifies `triage/modality_router.py`. |
+| Prompt Injection (OWASP LLM Top 10) | The supplied source contains only a truncated LLM10:2025 blurb about "Unbounded Consumption"; it also flags cross-modal injection. Detailed LLM10 control recommendations are external to the supplied research set and are not treated as supplied-paper support. |
 | Sensitive Information Disclosure (OWASP) | Applies regardless of which tier answers — justifies the policy gate covering the deterministic/non-AI branch, not just the AI branch. |
 | The Impact of Gen AI on Critical Thinking | Confidence in AI output (not accuracy) predicts reduced scrutiny; introduces "stewardship" as the target human role — justifies `interface/feedforward.py` and `human_checkpoint.py`. |
 | The Metacognitive Demands and Opportunities of Generative AI | "Processing fluency" as the mechanism (fast, fluent output inflates confidence independent of correctness); proposes "feedforward" as the concrete mitigation — direct source of Stage 4. |
@@ -54,8 +54,9 @@ table that makes that traceability checkable rather than asserted.
 | `guardrails/output_filter.py` | Sensitive Information Disclosure (OWASP) and the frozen architecture's requirement that security/validation boundaries apply across execution branches. |
 | `api/main.py` | Frozen architecture/specification and project integration work; no single paper is claimed as direct evidence for the API wiring itself. |
 | `session/session_state.py` | Identified during architecture stress-test, not from a single paper — a general multi-turn systems gap the papers don't directly cover |
-| `escalation/repair_router.py` | [SPEC] Stage 5 #7/#10 and Stage 6 #10 define repair-router invocation/decision space. [RESEARCH] OWASP LLM10:2025 Unbounded Consumption supports bounded resource/action exposure rather than uncontrolled repeated inference. [JUDGMENT] exact retry/skip/withhold rules (see OI-069) are project decisions, not claims established by the research. |
+| `escalation/repair_router.py` | [SPEC] Stage 5 #7/#10 and Stage 6 #10 define repair-router invocation/decision space. [RESEARCH] The supplied Prompt Injection source provides only the LLM10:2025 blurb-level identification of Unbounded Consumption; the detailed OWASP control recommendations are external to the supplied research set. [JUDGMENT] bounded retry/skip/withhold rules (see OI-069) are project decisions, not claims established by the supplied research. |
 | `validation/non_llm_checks.py` | [SPEC] Stage 6 #4 preference for non-LLM checks. [RESEARCH] NIST GenAI Profile MG-2.2-001 supports comparing/reviewing generated outputs against predefined guidelines; MG-2.2-005 supports output analysis for harmful content. |
+| `validation/validator.py` | [SPEC] Stage 6 #5/#7 define validator allowance and failure semantics; Stage 6 #10 defines repair-router escalation after validation failure. [PROJECT] Current validator implementation uses non-LLM checks and policy-defined failure semantics, with classifier `HIGH_STAKES` excluded by OI-046/061. |
 | `audit/audit_log.py` | [SPEC] Stage 7 audit schema target; Stage 5 #8 (actual vs. estimated cost). [PROJECT] OI-058, OI-071. |
 
 ---
@@ -99,7 +100,7 @@ The supplied *A Review of Prominent Paradigms for LLM-Based Agents* discusses ev
 
 ### Why WITHHOLD is the current terminal state
 
-The current OI-066 decision is a **project/architecture decision informed by research, not a direct prescription from a paper**. NIST MG-2.2-001 supports preventing an unreviewed/failed output from being treated as though it passed the defined review criteria. The current system has no implemented human-review/release workflow, so WITHHOLD is the honest terminal state rather than implying human approval that did not occur.
+The current OI-066 decision is a **project/architecture decision informed by research, not a direct prescription from a paper**. NIST MG-2.2-001 supports comparing and reviewing generated outputs against predefined risk tolerances, guidelines, and principles. The project's decision to withhold an output when it fails validation, in the absence of a human-review/release workflow, is its own implementation/architecture choice. The current system has no implemented human-review/release workflow, so WITHHOLD is the honest terminal state rather than implying human approval that did not occur.
 
 The supplied energy/inference sources establish that inference resource use varies substantially with workload, model, hardware, and software conditions. That supports bounded repair as a resource-efficiency concern, but does not prove the exact one-escalation rule.
 
