@@ -13,8 +13,8 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `failure_modes.yaml` — what to do if a check times out or errors (block vs. allow)
 
 `cost/` — figures out what things cost
-- `calibration/calibration.py` — script to refresh cost numbers from real usage data
-- `breakeven.py` — checks whether runtime overhead itself is costing more than it saves
+- `calibration/calibration.py` — planned script to refresh cost numbers from real usage data
+- `breakeven.py` — planned analysis of whether runtime overhead itself costs more than it saves
 - `estimator.py` — estimates energy/dollar/latency/token cost for a request + tier/model, with explicit assumptions and uncertainty
 - `model_registry.py` — model/cost catalog and energy anchors
 
@@ -30,7 +30,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `human_checkpoint.py` — confirm-before-execute gate for `REQUIRE_HUMAN`: single-use, signed tokens bound to session, exact text, and rule set
 
 `llm/` — talks to the actual AI models
-- `gateway.py` — the raw API client (handles auth, retries, request/response format)
+- `gateway.py` — planned raw API client (auth, retries, request/response format)
 
 `audit/` — keeps a record
 - `audit_log.py` — logs every decision made and why; records `execution`, validation trace, and withheld-route estimates
@@ -59,7 +59,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `bias_monitor.py` — planned routing-outcome comparison for phrasing/language fairness
 - `classifier.py` — first-pass keyword classifier; its output feeds the Stage 3 planner in `decision.py`
 - `decision.py` — the Stage 3 planner: builds the cheapest-first routing plan (cache → deterministic → small classifier → RAG → LLM) with per-rung skip reasons and cost estimates
-- `modality_router.py` — handles text/image/audio requests (Sprint 6)
+- `modality_router.py` — planned minimal text/image/audio routing support (Sprint 6)
 - `taxonomy.py` — defines the categories used to classify requests
 
 `validation/` — checks the answer before it's shown to anyone
