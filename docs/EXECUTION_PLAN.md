@@ -135,7 +135,7 @@ Rendering failures currently fail open so execution can continue without feedfor
 - The planner intentionally does not duplicate `SessionState` enforcement; `api/main.py` remains responsible for combining the session floor with the Stage 1 action before routing (`OI-037`).
 - The high-cost feedforward limits remain placeholders and require calibration alongside the model/cost catalog before they support empirical claims (`OI-045`).
 
-- **OI-058 resolved:** audit records now distinguish `executed`, `withheld_pending_confirmation`, and `blocked`; withheld-route estimates are stored separately from zero placeholder execution cost, as recorded in `OPEN_ENDS.md`.
+- **OI-058 resolved:** audit records now distinguish `executed`, `withheld_pending_confirmation`, and `blocked`; withheld-route estimates are stored separately from zero placeholder execution cost. The Sprint 5 `executed_withheld` audit state is additionally recorded through OI-071, as tracked in `OPEN_ENDS.md`.
 
 ### Remaining Sprint 4 sequence
 
@@ -166,7 +166,7 @@ Rendering failures currently fail open so execution can continue without feedfor
 
 **Verification boundary:** validator, repair-router, and live API validation/repair-wiring tests are committed on `main`. Sprint 5 is still not complete and no end-to-end Sprint 5 completion claim is made because governance enforcement and the bias monitor remain unimplemented. The owner-reported local full-suite result is tracked in `README.md`; it is not an independent verification claim.
 
-**Test target:** deliberately inject a validation failure and a Stage 5 execution error through the live pipeline and confirm the correct repair/escalation/withhold path fires for each, while preserving the frozen Stage 0→7 ordering.
+**Test target:** deliberately inject a validation failure and a Stage 5 execution error through the live pipeline and confirm the correct repair/escalation/withhold path fires for each, while preserving the frozen Stage 0→7 ordering. This is covered by `tests/api/test_main_validation_wiring.py`.
 
 ## Sprint 6 — Modality awareness, hardened adversarial testing
 
