@@ -108,4 +108,4 @@ OWASP **LLM10:2025 Unbounded Consumption** identifies excessive/uncontrolled inf
 
 Accordingly:
 - **[RESEARCH]** supports validation as a control, human feedback/recourse as a useful future capability, and bounded resource use as a concern.
-- **[JUDGMENT]** covers the exact WITHHOLD terminal behavior and the repair-router details tracked under OI-069.
+- **[PROJECT]** covers the exact WITHHOLD terminal behavior (OI-066), as an owner/project decision informed by the research. **[JUDGMENT]** covers the repair-router details tracked under OI-069.
