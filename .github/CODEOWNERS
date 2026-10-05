@@ -1,1 +1,22 @@
+# CODEOWNERS -- Constitutional Runtime
+#
+# Canonical project-governance copy: policy/governance/CODEOWNERS.
+# GitHub only reads CODEOWNERS from .github/, the repository root or docs/, so
+# .github/CODEOWNERS is the enforcement copy. The two files must stay identical
+# (tests/policy/test_governance.py fails if they drift). Edit both together.
+#
+# This file does NOT itself enforce anything. Review is only required if the
+# repository's branch protection / ruleset for `main` enables "Require review
+# from Code Owners". On a solo-owner repository the owner also needs an admin
+# bypass (or a second reviewer) to merge their own pull requests; see OPEN_ENDS.md.
+#
+# Scope [JUDGMENT]: the runtime constitution and its failure semantics, the
+# policy package (engine, schemas, governance log), the frozen architecture, the
+# development constitution, and this file.
 
+/config/constitution.yaml   @alaukikk
+/config/failure_modes.yaml  @alaukikk
+/policy/                    @alaukikk
+/docs/ARCHITECTURE.md       @alaukikk
+/docs/CONSTITUTION.md       @alaukikk
+/.github/CODEOWNERS         @alaukikk
