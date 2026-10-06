@@ -7,7 +7,7 @@ that keep Claude, ChatGPT, and the human decision-maker working from
 the same source of truth instead of quietly re-architecting the
 project independently every session.
 
-This exists because the project's own thesis — that AI should be
+This exists because that AI should be
 constrained by explicit policy rather than left to decide things
 freely — should be reflected in how the project itself is built, not
 just in what it produces.
@@ -33,7 +33,7 @@ their own separate versions.
 
 ## The five rules
 
-**Rule 1 — Don't use AI unnecessarily.**
+**Rule 1 — Do use AI necessarily.**
 If a question can be resolved by deterministic engineering, documentation,
 direct code inspection, or testing, don't invoke an LLM to answer it —
 including within the development process itself, not just the runtime.
