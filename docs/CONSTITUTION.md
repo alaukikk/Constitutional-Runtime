@@ -7,7 +7,7 @@ that keep Claude, ChatGPT, and the human decision-maker working from
 the same source of truth instead of quietly re-architecting the
 project independently every session.
 
-This exists because the project's own thesis — that AI should be
+This exists because that AI should be
 constrained by explicit policy rather than left to decide things
 freely — should be reflected in how the project itself is built, not
 just in what it produces.
