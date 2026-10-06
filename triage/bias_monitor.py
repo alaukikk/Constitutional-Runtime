@@ -11,6 +11,11 @@ the same thing in different styles, runs each through the PURE planner
 cached), and reports how classification, attempt order and estimated cost differ
 from a baseline style.
 
+SCOPE (owner decision). The runtime is scoped to English for now. Informal-vs-formal
+English is the in-scope comparison; the Hindi and Hinglish rows document the edge of
+that scope and are not defects to fix now. Multilingual support is future scope
+(FS-017) and nothing here implies it exists.
+
 WHAT IT IS NOT.
   * It is not evidence of fairness or unfairness. The built-in set is small,
     hand-written by one author, synthetic, not independently annotated, and the
@@ -66,6 +71,13 @@ EVIDENCE_LIMITATION = (
     "speaker. It shows how the current implementation behaves on these examples; it cannot "
     "support claims that the router is or is not fair across languages or phrasing styles "
     "(see OI-051, OI-056, OI-057)."
+)
+
+SCOPE_NOTE = (
+    "Scope decision (owner): the runtime currently targets English. The hindi and hinglish rows "
+    "measure behaviour at the edge of that scope; they are not defects to fix now. Multilingual "
+    "routing and safety coverage is future scope (FS-017). Only formal vs informal English is "
+    "within the current scope of this comparison."
 )
 
 IMPLEMENTATION_NOTES: tuple[str, ...] = (
@@ -230,6 +242,7 @@ class StyleSummary:
     mean_worst_case_wh_ratio: Optional[float]
     mean_llm_rung_wh_ratio: Optional[float]
     mean_input_token_ratio: Optional[float]
+    n_non_ascii: int = 0                        # routed variants whose text contains non-ASCII characters
 
 
 @dataclass(frozen=True)
@@ -243,6 +256,7 @@ class BiasReport:
     findings: tuple[str, ...]
     implementation_notes: tuple[str, ...] = IMPLEMENTATION_NOTES
     evidence_limitation: str = EVIDENCE_LIMITATION
+    scope_note: str = SCOPE_NOTE
 
 
 # --------------------------------------------------------------------------- measurement
@@ -345,8 +359,14 @@ def _findings(base_unknown: Optional[float], summaries: Sequence[StyleSummary]) 
                        f"were NOT classified HIGH_STAKES in this style; the planner's high-stakes "
                        f"handling did not apply to them (Stage 1 policy rules are not measured here).")
         if s.mean_input_token_ratio is not None and s.mean_input_token_ratio != 1.0:
+            if s.n_non_ascii:
+                why = ("reflecting the estimator's non-ASCII-counts-as-one-token heuristic "
+                       "together with any difference in text length")
+            else:
+                why = ("reflecting text length only (every routed variant in this style is ASCII, so "
+                       "the non-ASCII heuristic does not apply)")
             out.append(f"{s.style}: mean estimated input tokens are {_fmt_ratio(s.mean_input_token_ratio)} "
-                       f"the baseline's, reflecting the estimator's non-ASCII-counts-as-one-token heuristic.")
+                       f"the baseline's, {why}.")
     return tuple(out)
 
 
@@ -382,6 +402,7 @@ def run_paired_comparison(groups: Sequence[PairGroup] = PAIRED_REQUESTS, *,
             mean_worst_case_wh_ratio=_mean([c.worst_case_wh_ratio for c in comparable]),
             mean_llm_rung_wh_ratio=_mean([c.llm_rung_wh_ratio for c in comparable]),
             mean_input_token_ratio=_mean([c.input_token_ratio for c in comparable]),
+            n_non_ascii=sum(1 for o in routed if o.routed and not o.text.isascii()),
         ))
 
     base_unknown = _unknown_rate([outcomes[g.group_id][BASELINE_STYLE] for g in groups])
@@ -395,7 +416,8 @@ def run_paired_comparison(groups: Sequence[PairGroup] = PAIRED_REQUESTS, *,
 
 def format_report(report: BiasReport) -> str:
     lines = [f"Paired-request routing comparison ({report.n_groups} groups, baseline: {report.baseline_style})",
-             "Measurements only: no pass/fail verdict, no model calls, nothing executed.", "",
+             "Measurements only: no pass/fail verdict, no model calls, nothing executed.",
+             report.scope_note, "",
              f"{'style':<12}{'comparable':>11}{'UNKNOWN':>9}{'same cat':>10}{'same order':>12}"
              f"{'lost cheap':>12}{'lost HS':>9}{'tokens':>9}{'worst Wh':>10}{'LLM Wh':>9}"]
     for s in report.summaries:
