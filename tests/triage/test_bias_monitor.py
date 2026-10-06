@@ -148,13 +148,28 @@ def test_gained_cheap_access_is_reported_separately_from_lost():
 def test_cost_and_token_ratios_are_exact():
     base = fake_plan(R.LOOKUP, CHEAP_PLAN, wh=1.0, llm_wh=2.0, tokens=10)       # worst case = 4*1 + 2 = 6
     var = fake_plan(R.UNKNOWN, DET_ONLY, wh=1.0, llm_wh=3.0, tokens=40)         # worst case = 2*1 + 3 = 5
-    table = {"base": base, "informal": base, "hindi": var, "hinglish": base}
-    rep = run_paired_comparison([group()], planner=planner_from(table))
+    table = {"base": base, "informal": base, "h\u00e9llo": var, "hinglish": base}   # non-ASCII variant
+    rep = run_paired_comparison([group(hindi="h\u00e9llo")], planner=planner_from(table))
     s = summary(rep, "hindi")
+    assert s.n_non_ascii == 1
     assert s.mean_input_token_ratio == pytest.approx(4.0)
     assert s.mean_llm_rung_wh_ratio == pytest.approx(1.5)
     assert s.mean_worst_case_wh_ratio == pytest.approx(5 / 6)      # LOWER worst case, yet routed worse
-    assert any("non-ASCII" in f and "hindi" in f for f in rep.findings)
+    assert any("counts-as-one-token" in f and "hindi" in f for f in rep.findings)
+
+
+def test_ascii_styles_are_not_blamed_on_the_non_ascii_heuristic():
+    """A token ratio from plain length differences must not be attributed to the
+    estimator's non-ASCII rule (a wrong explanation would mislead the docs)."""
+    base = fake_plan(R.LOOKUP, CHEAP_PLAN, tokens=10)
+    shorter = fake_plan(R.LOOKUP, CHEAP_PLAN, tokens=8)
+    table = {"base": base, "informal": shorter, "hindi": base, "hinglish": shorter}
+    rep = run_paired_comparison([group()], planner=planner_from(table))
+    for style in ("informal_en", "hinglish"):
+        assert summary(rep, style).n_non_ascii == 0
+        lines = [f for f in rep.findings if f.startswith(style) and "estimated input tokens" in f]
+        assert len(lines) == 1
+        assert "text length only" in lines[0] and "counts-as-one-token" not in lines[0]
 
 
 def test_zero_baseline_gives_no_ratio_instead_of_dividing():
@@ -211,6 +226,22 @@ def test_report_makes_no_verdict_and_states_its_limits():
         assert note in text
 
 
+def test_scope_decision_is_stated_in_every_report():
+    table = {k: fake_plan(R.LOOKUP, CHEAP_PLAN) for k in ("base", "informal", "hindi", "hinglish")}
+    rep = run_paired_comparison([group()], planner=planner_from(table))
+    assert rep.scope_note == bm.SCOPE_NOTE
+    text = bm.format_report(rep)
+    assert bm.SCOPE_NOTE in text and "English" in text and "FS-017" in text
+    assert "not defects to fix now" in text
+    # stated before the table, so the numbers are never read without it
+    assert text.index(bm.SCOPE_NOTE) < text.index("style ")
+
+
+def test_scope_note_does_not_claim_multilingual_support():
+    low = bm.SCOPE_NOTE.lower()
+    assert "future scope" in low and "currently targets english" in low
+
+
 def test_implementation_gaps_are_named_in_every_report():
     notes = " ".join(bm.IMPLEMENTATION_NOTES)
     assert "English" in notes and "non-ASCII character as one token" in notes
@@ -246,6 +277,21 @@ def test_real_run_reports_each_non_baseline_style(monkeypatch):
         assert s.n_groups == len(PAIRED_REQUESTS) and s.n_comparable == len(PAIRED_REQUESTS)
         assert s.unknown_rate is not None and s.mean_input_token_ratio is not None
         assert any(s.style in f and "UNKNOWN" in f for f in rep.findings)
+
+
+def test_real_run_non_ascii_counts_match_the_scripts_used(monkeypatch):
+    _no_execution(monkeypatch)
+    rep = run_paired_comparison()
+    counts = {s.style: s.n_non_ascii for s in rep.summaries}
+    assert counts == {"informal_en": 0, "hindi": len(PAIRED_REQUESTS), "hinglish": 0}
+
+
+def test_real_run_never_blames_the_heuristic_for_ascii_styles(monkeypatch):
+    _no_execution(monkeypatch)
+    rep = run_paired_comparison()
+    for f in rep.findings:
+        if f.startswith(("informal_en", "hinglish")) and "estimated input tokens" in f:
+            assert "counts-as-one-token" not in f
 
 
 def test_real_run_is_deterministic(monkeypatch):
