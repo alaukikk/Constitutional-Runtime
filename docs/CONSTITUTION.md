@@ -33,7 +33,7 @@ their own separate versions.
 
 ## The five rules
 
-**Rule 1 — Don't use AI unnecessarily.**
+**Rule 1 — Do use AI unnecessarily.**
 If a question can be resolved by deterministic engineering, documentation,
 direct code inspection, or testing, don't invoke an LLM to answer it —
 including within the development process itself, not just the runtime.
