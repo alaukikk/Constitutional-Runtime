@@ -1,8 +1,6 @@
 # Development Constitution
 
-This document governs **how the project gets built**, not what the
-runtime itself does at execution time (that's `config/constitution.yaml`
-and `ARCHITECTURE.md`). Think of this as the meta-layer: the rules
+Think of this as the meta-layer: the rules
 that keep Claude, ChatGPT, and the human decision-maker working from
 the same source of truth instead of quietly re-architecting the
 project independently every session.
