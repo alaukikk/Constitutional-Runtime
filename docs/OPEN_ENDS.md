@@ -145,7 +145,5 @@ Sprint 5 implementation is substantially complete. Stage 6 validation, the cross
 ## Already scheduled in the plan (not duplicated here)
 
 These were deliberately left unbuilt and already have a sprint in `EXECUTION_PLAN.md`:
-the small classifier is built; the RAG tier remains blocked by OI-006 and OI-054. Also scheduled: governance, `bias_monitor.py` (Sprint 5), `modality_router.py` and full adversarial suites
-(Sprint 6), `cost/breakeven.py` and the comparative experiment (Sprints 7–8). Also tracked in
-the plan: formal user-study design and its ethics/methodology pass (needed before Sprint 7)
-and the full `policy/governance/` review workflow.
+the small classifier is built; the RAG tier remains blocked by OI-006 and OI-054. Also scheduled: `modality_router.py` and full adversarial suites (Sprint 6), `cost/breakeven.py` and the comparative experiment (Sprints 7–8). 
+Also tracked in the plan: formal user-study design and its ethics/methodology pass (needed before Sprint 7) and the full `policy/governance/` review workflow.
