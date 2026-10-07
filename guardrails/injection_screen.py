@@ -5,6 +5,29 @@ Stateless, per-message jailbreak/injection screen. Runs before anything else,
 with zero input from session history (see ARCHITECTURE.md core principle).
 No AI permitted at this stage — regex/heuristic only.
 Fails closed: any internal error => BLOCKED.
+
+Unsupported-script refusal (OI-077). The runtime is scoped to English for now.
+A request whose letters are mostly non-Latin script (Devanagari, Arabic,
+Cyrillic, CJK, ...) is refused here: ScreenVerdict.BLOCKED with the single
+matched pattern UNSUPPORTED_LANGUAGE. This stays inside Stage 0's contract:
+deterministic character-class counting (no model), a pure function of the text,
+fail-closed, and the verdict is still one of clean/suspicious/blocked.
+
+What it CAN and CANNOT do (do not oversell it):
+  * It detects non-LATIN SCRIPTS only. Romanised Hindi ("Hinglish"), Spanish,
+    French and every other Latin-script language pass as ordinary text, because
+    telling them from English needs language identification, which is a model
+    and is not permitted at this stage. Those requests are still routed and
+    still reach only English-keyword screens (OI-076, FS-017).
+  * The rule is "most of the letters are non-Latin", not "contains a non-Latin
+    letter": English that quotes a foreign word, a name, a math symbol or an
+    emoji must not be refused. Thresholds below are [JUDGMENT] placeholders.
+
+Session-risk boundary. This refusal is a scope decision, not a security signal,
+so api/main.py does not charge session risk for it -- but ONLY when
+UNSUPPORTED_LANGUAGE is the sole matched pattern (is_language_refusal_only).
+If any injection or suspicious pattern also matches, the request takes the
+normal path and is charged as before.
 """
 from __future__ import annotations
 import re
@@ -49,11 +72,52 @@ _SUSPICIOUS_PATTERNS: dict[str, str] = {
 
 _MAX_LEN = 20_000
 
+# Marker pattern for the unsupported-script refusal (see module docstring).
+UNSUPPORTED_LANGUAGE = "unsupported_language"
+
+# [JUDGMENT] placeholders: refuse only when there are at least this many non-Latin
+# letters AND they are STRICTLY more than this share of all letters. Exactly half
+# passes, so a name with its native spelling next to it is not refused.
+_MIN_NON_LATIN_LETTERS = 3
+_NON_LATIN_MAJORITY = 0.5
+
 
 def _normalize(text: str) -> str:
     text = unicodedata.normalize("NFKC", text)
     text = "".join(ch for ch in text if ch == "\n" or ch.isprintable())
     return text.strip()
+
+
+def _non_latin_letter_stats(text: str) -> tuple[int, int]:
+    """(non-Latin letters, all letters). A letter counts as Latin when its Unicode
+    name starts with LATIN, which covers accented forms (e-acute, n-tilde, ...).
+    Digits, punctuation, symbols and emoji are not letters and are ignored."""
+    non_latin = total = 0
+    for ch in text:
+        if not ch.isalpha():
+            continue
+        total += 1
+        try:
+            name = unicodedata.name(ch)
+        except ValueError:
+            name = ""
+        if not name.startswith("LATIN"):
+            non_latin += 1
+    return non_latin, total
+
+
+def _is_unsupported_script(text: str) -> bool:
+    non_latin, total = _non_latin_letter_stats(text)
+    return (total > 0 and non_latin >= _MIN_NON_LATIN_LETTERS
+            and non_latin / total > _NON_LATIN_MAJORITY)
+
+
+def is_language_refusal_only(result: ScreenResult) -> bool:
+    """True only for a BLOCKED result whose SOLE reason is the unsupported-script
+    refusal. Anything else (an injection pattern, a suspicious pattern, an empty or
+    oversized input, an internal error) is not exempt from normal handling."""
+    return (result.verdict == ScreenVerdict.BLOCKED
+            and list(result.matched_patterns) == [UNSUPPORTED_LANGUAGE])
 
 
 def screen_request(request_text: str) -> ScreenResult:
@@ -73,10 +137,17 @@ def screen_request(request_text: str) -> ScreenResult:
         if matched:
             return ScreenResult(normalized, ScreenVerdict.BLOCKED, 0.9, matched)
 
-        matched = [name for name, pat in _SUSPICIOUS_PATTERNS.items() if re.search(pat, lowered)]
-        if matched:
-            confidence = min(0.5 + 0.15 * len(matched), 0.85)
-            return ScreenResult(normalized, ScreenVerdict.SUSPICIOUS, confidence, matched)
+        suspicious = [name for name, pat in _SUSPICIOUS_PATTERNS.items() if re.search(pat, lowered)]
+
+        # Unsupported script: checked AFTER the injection patterns so an attack phrase is
+        # never hidden behind this refusal, and any suspicious pattern is kept in the
+        # result so the request is not treated as a language-only refusal.
+        if _is_unsupported_script(normalized):
+            return ScreenResult(normalized, ScreenVerdict.BLOCKED, 0.9, [UNSUPPORTED_LANGUAGE] + suspicious)
+
+        if suspicious:
+            confidence = min(0.5 + 0.15 * len(suspicious), 0.85)
+            return ScreenResult(normalized, ScreenVerdict.SUSPICIOUS, confidence, suspicious)
 
         return ScreenResult(normalized, ScreenVerdict.CLEAN, 0.95, [])
 
