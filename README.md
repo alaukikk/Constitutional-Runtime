@@ -39,8 +39,10 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 `policy/` — enforces the rulebook
 - `engine.py` — reads `constitution.yaml` and applies the rules
 - `schemas.py` — defines the shared data shapes (what a decision or classification looks like)
-- `governance/CODEOWNERS` — planned governance ownership enforcement
-- `governance/change_log.py` — planned policy-change history and traceability
+- `governance/CODEOWNERS` — canonical project governance ownership copy
+- `.github/CODEOWNERS` — GitHub-recognized code-owner enforcement copy
+- `governance/change_log.py` — machine-readable constitutional-file governance/integrity log
+- `governance/change_log.jsonl` — committed governance decision records and hashes
 
 `session/` — remembers context across a conversation
 - `session_state.py` — tracks cumulative risk/cost, turn count, and monotonic constraints across a conversation
@@ -56,7 +58,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `model_selector.py` — selects among candidate models using capability floors and energy/dollar objectives
 
 `triage/` — decides what kind of request this is and where it should go
-- `bias_monitor.py` — planned routing-outcome comparison for phrasing/language fairness
+- `bias_monitor.py` — paired-request routing-outcome comparison harness; it does not establish fairness
 - `classifier.py` — first-pass keyword classifier; its output feeds the Stage 3 planner in `decision.py`
 - `decision.py` — the Stage 3 planner: builds the cheapest-first routing plan (cache → deterministic → small classifier → RAG → LLM) with per-rung skip reasons and cost estimates
 - `modality_router.py` — planned minimal text/image/audio routing support (Sprint 6)
@@ -81,15 +83,17 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 ## Current sprint status
 
+**Current scope: English.** Multilingual routing and safety coverage are future scope (FS-017); no architecture change follows from this owner decision.
+
 **Sprint 3 — Session context + real cost accounting: COMPLETE.**
 
 **Sprint 4 — Graduated routing + feedforward: IMPLEMENTATION COMPLETE; carry-forwards tracked in `docs/OPEN_ENDS.md`.**
 
-**Sprint 5 — Escalation, validation, governance: IN PROGRESS.** Stage 6 validation, non-LLM checks, repair-router logic, and live validation/repair API wiring are implemented and tested. Governance enforcement and bias monitoring remain open.
+**Sprint 5 — Escalation, validation, governance: CLOSURE REVIEW.** Stage 6 validation, non-LLM checks, repair-router logic, live validation/repair API wiring, governance, and the bias-monitor harness are implemented and committed. Sprint 5 closure is not yet claimed pending review of triggered OIs. Branch-protection/code-owner enforcement on `main` is configured and owner-verified.
 
 The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. The Stage 4 feedforward layer is also committed and integrated, providing templated route/outcome text and a high-cost confirmation gate. The API exposes a `feedforward` response field alongside the confirmation fields where applicable. The small-classifier implementation and retrieval prototype are now also committed; the complete RAG generation path is intentionally not yet implemented.
 
-The latest owner-reported local full-suite run was **486 passed, 1 skipped**. The skipped test is the Windows symlink test. This is an owner-reported local result; no independent test run is claimed here.
+The latest owner-reported local full-suite run was **562 passed, 1 skipped**. This is an owner-reported result; no independent test run is claimed here.
 
 Carry-forwards from Sprint 4 include the `CLASSIFICATION` eligibility decision, classifier calibration/evaluation, the complete RAG generation path, empirical resource measurements, and the remaining feedforward/user-study decisions. These are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
 
@@ -98,3 +102,16 @@ The current `main` branch contains the Sprint 3 session-state, cost-estimation, 
 ## Root files
 - `README.md` — project overview and repository map
 - `requirements.txt` — Python dependencies
+
+
+## Governance and bias-monitor checks
+
+From the repository root:
+
+```text
+python -m policy.governance.change_log check
+python -m policy.governance.change_log append --component <file> --decision ACCEPT --decided-by <name> --description "<why>"
+python -m triage.bias_monitor
+```
+
+The governance check detects whether the latest record matches the governed constitutional files; a matching record is not proof of approval or identity. The bias monitor is a small routing-outcome harness, not a fairness validator.
