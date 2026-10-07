@@ -33,11 +33,11 @@ table that makes that traceability checkable rather than asserted.
 | `guardrails/adversarial/` | Jailbreak Attacks and Defenses (attacks evolve faster than defenses — router/classifier need the same scrutiny) |
 | `policy/engine.py`, `config/constitution.yaml` | NIST AI RMF GenAI Profile |
 | `config/failure_modes.yaml` | NIST AI RMF (Environmental Impacts + Human-AI Configuration sections implicitly require explicit failure semantics) |
-| `policy/governance/` | NIST AI RMF (Govern function) |
+| `policy/governance/` | [RESEARCH] NIST AI RMF GenAI Profile (Govern function supports defined responsibilities, governance processes, and documentation). [PROJECT] OI-067 implements CODEOWNERS plus a machine-readable constitutional-file integrity log. [JUDGMENT] SHA-256 line-ending normalization, record schema, and the boundary that a matching record does not imply approval are implementation choices. |
 | `cost/estimator.py`, `model_registry.py` | From Prompts to Power; How Hungry is AI |
 | `cost/breakeven.py` | Energy Considerations of LLM Inference (optimizations aren't free); How Hungry is AI (Jevons Paradox applied recursively to the runtime itself) |
 | `triage/decision.py` | [SPEC] Stage 3 #1, #4, #7, #9, #10. [RESEARCH] How Hungry is AI §7, p.11 (reasoning depth as a cost dial). The existing LLM-Agents and Education citations are "per traceability doc, not re-verified". [JUDGMENT] 0.4 confidence floor (OI-029), 0.7 capability floor (OI-033). |
-| `triage/bias_monitor.py` | NIST AI RMF (Harmful Bias and Homogenization) |
+| `triage/bias_monitor.py` | [RESEARCH] NIST AI RMF GenAI Profile supports measuring and documenting bias/fairness and recognizing subgroup/language disparities. [PROJECT] OI-068 implements a small paired-request routing-outcome harness. [JUDGMENT] hand-written pair construction, English baseline, comparison metrics, and the conclusion that the small harness cannot establish fairness. See OI-056 and FS-017. |
 | `triage/modality_router.py` | Prompt Injection / OWASP (cross-modal injection) |
 | `interface/feedforward.py` | [SPEC] Stage 4 (#3 hard gate, #7 failure behavior) and Stage 3 #6 (omit classifier internals). The existing Metacognitive Demands citation is "per traceability doc, not re-verified". [JUDGMENT] cost-gate limits (OI-045), `HIGH_STAKES` not a gate (OI-046), fail-open/fail-closed split (OI-050). |
 | `interface/confidence.py` | Impact of Gen AI on Critical Thinking (confidence ≠ accuracy finding) |
@@ -109,3 +109,8 @@ The supplied OWASP source names LLM10:2025 Unbounded Consumption, but its text i
 Accordingly:
 - **[RESEARCH]** supports validation as a control, human feedback/recourse as a useful future capability, and bounded resource use as a concern.
 - **[PROJECT]** covers the exact WITHHOLD terminal behavior (OI-066), as an owner/project decision informed by the research. **[JUDGMENT]** covers the repair-router details tracked under OI-069.
+
+
+## Current scope and deferred language coverage
+
+**[PROJECT]** The owner has scoped the current runtime to English only. `ARCHITECTURE.md` is unchanged. Stage 3 #12 names languages, but multilingual support is deferred by owner decision rather than treated as satisfied. OI-068's Hindi/Hinglish measurements are diagnostic evidence of current English-keyword routing limitations, not evidence of multilingual support or Hindi/Hinglish quality. Multilingual routing and safety coverage are tracked as FS-017.
