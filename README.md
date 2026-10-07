@@ -4,6 +4,8 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 ## Repository structure
 
+`.github/CODEOWNERS` — GitHub-recognized code-owner enforcement copy
+
 `api/` — the front door
 - `main.py` — live Stage 0 → Stage 1 → Stage 2 → Stage 3/5 → Stage 6 → Stage 7 request pipeline
 - `settings.py` — app-level settings (API keys, ports, checkpoint signing secret, env variables)
@@ -40,7 +42,6 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `engine.py` — reads `constitution.yaml` and applies the rules
 - `schemas.py` — defines the shared data shapes (what a decision or classification looks like)
 - `governance/CODEOWNERS` — canonical project governance ownership copy
-- `.github/CODEOWNERS` — GitHub-recognized code-owner enforcement copy
 - `governance/change_log.py` — machine-readable constitutional-file governance/integrity log
 - `governance/change_log.jsonl` — committed governance decision records and hashes
 
