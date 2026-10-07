@@ -97,7 +97,7 @@ The latest owner-reported local full-suite run was **562 passed, 1 skipped**. Th
 
 Carry-forwards from Sprint 4 include the `CLASSIFICATION` eligibility decision, classifier calibration/evaluation, the complete RAG generation path, empirical resource measurements, and the remaining feedforward/user-study decisions. These are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
 
-The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, feedforward/cost-gate integration, small classifier, and retrieval prototype. Sprint 4 implementation and automated test verification are complete; Sprint 5 remains in progress because governance enforcement and bias monitoring are still outstanding. Stage 6 validation, repair-router logic, and live validation/repair integration are committed and tracked in `docs/OPEN_ENDS.md`.
+The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, feedforward/cost-gate integration, small classifier, and retrieval prototype. Sprint 4 implementation and automated test verification are complete; Stage 6 validation, repair-router logic, and live validation/repair integration are committed and tracked in `docs/OPEN_ENDS.md`.
 
 ## Root files
 - `README.md` — project overview and repository map
