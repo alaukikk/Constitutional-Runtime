@@ -12,8 +12,10 @@ cached), and reports how classification, attempt order and estimated cost differ
 from a baseline style.
 
 SCOPE (owner decision). The runtime is scoped to English for now. Informal-vs-formal
-English is the in-scope comparison; the Hindi and Hinglish rows document the edge of
-that scope and are not defects to fix now. Multilingual support is future scope
+English is the in-scope comparison. Requests in a non-Latin script (the Hindi rows) are
+refused at Stage 0 (OI-077) and so are counted as refused, not routed; the Hinglish rows
+(Latin script) are still routed and document the limit of a script check. Neither is a
+defect to fix now. Multilingual support is future scope
 (FS-017) and nothing here implies it exists.
 
 WHAT IT IS NOT.
@@ -53,7 +55,7 @@ import statistics
 from dataclasses import dataclass
 from typing import Callable, Mapping, Optional, Sequence
 
-from guardrails.injection_screen import ScreenVerdict, screen_request
+from guardrails.injection_screen import ScreenVerdict, is_language_refusal_only, screen_request
 from policy.schemas import MethodTier, RequestType
 from triage.decision import plan_request
 
@@ -74,13 +76,18 @@ EVIDENCE_LIMITATION = (
 )
 
 SCOPE_NOTE = (
-    "Scope decision (owner): the runtime currently targets English. The hindi and hinglish rows "
-    "measure behaviour at the edge of that scope; they are not defects to fix now. Multilingual "
-    "routing and safety coverage is future scope (FS-017). Only formal vs informal English is "
-    "within the current scope of this comparison."
+    "Scope decision (owner): the runtime currently targets English. Stage 0 now refuses requests "
+    "written mostly in a non-Latin script (e.g. Devanagari) as unsupported (OI-077), so those "
+    "requests are not routed and have no routing outcome to compare. Latin-script non-English "
+    "(e.g. Hinglish) cannot be told from English by a script check and is still routed; its rows "
+    "document that limit and are not defects to fix now. Multilingual routing and safety coverage "
+    "is future scope (FS-017)."
 )
 
 IMPLEMENTATION_NOTES: tuple[str, ...] = (
+    "Stage 0 refuses requests whose letters are mostly non-Latin script (OI-077). It detects scripts, "
+    "not languages: Latin-script non-English such as Hinglish or Spanish is not detected and is still "
+    "routed.",
     "Classifier vocabulary (triage/taxonomy.py) is English; matching is a case-insensitive "
     "substring test, so a non-English request is recognised only through English words it "
     "happens to contain.",
@@ -90,8 +97,8 @@ IMPLEMENTATION_NOTES: tuple[str, ...] = (
     "cost.estimator.estimate_tokens counts each non-ASCII character as one token (a deliberately "
     "conservative placeholder heuristic, not a tokenizer), so Devanagari inputs are estimated "
     "larger than equivalent English ones by construction.",
-    "Stage 0 patterns and Stage 1 keyword rules are English and are not measured by this harness "
-    "(OI-076). Self-harm/suicide HIGH_STAKES keywords are likewise English; no such requests are "
+    "Stage 0 injection patterns and Stage 1 keyword rules are English and are not measured by this "
+    "harness (OI-076). Self-harm/suicide HIGH_STAKES keywords are likewise English; no such requests are "
     "included in the dataset on purpose.",
     "All cost figures are the planner's placeholder estimates (OI-005, OI-055), not measurements.",
 )
@@ -200,8 +207,9 @@ def validate_groups(groups: Sequence[PairGroup]) -> None:
 class VariantOutcome:
     style: str
     text: str
-    routed: bool                       # False if Stage 0 blocked it (never planned)
+    routed: bool                       # False if Stage 0 refused/blocked it (never planned)
     screen_verdict: str
+    refused_reason: Optional[str] = None   # "unsupported_language" | "stage0_blocked" when not routed
     category: Optional[RequestType] = None
     confidence: Optional[float] = None
     classifier_failed: bool = False
@@ -243,6 +251,7 @@ class StyleSummary:
     mean_llm_rung_wh_ratio: Optional[float]
     mean_input_token_ratio: Optional[float]
     n_non_ascii: int = 0                        # routed variants whose text contains non-ASCII characters
+    n_refused_unsupported_language: int = 0     # refused at Stage 0 as unsupported script (OI-077)
 
 
 @dataclass(frozen=True)
@@ -272,7 +281,8 @@ def route_variant(style: str, text: str,
     screen = screen_request(text)
     verdict = _verdict_str(screen.verdict)
     if screen.verdict == ScreenVerdict.BLOCKED:
-        return VariantOutcome(style, text, False, verdict)
+        reason = "unsupported_language" if is_language_refusal_only(screen) else "stage0_blocked"
+        return VariantOutcome(style, text, False, verdict, refused_reason=reason)
 
     plan = planner(screen.normalized_text)
     attempted = [s for s in plan.steps if s.attempt]
@@ -343,6 +353,13 @@ def _fmt_ratio(r: Optional[float]) -> str:
 def _findings(base_unknown: Optional[float], summaries: Sequence[StyleSummary]) -> tuple[str, ...]:
     out: list[str] = []
     for s in summaries:
+        if s.n_refused_unsupported_language:
+            out.append(f"{s.style}: {s.n_refused_unsupported_language} of {s.n_groups} requests were refused at "
+                       f"Stage 0 as unsupported script (OI-077) and never routed, so they have no routing "
+                       f"outcome to compare.")
+        if s.n_routed == 0:
+            out.append(f"{s.style}: no request was routed.")
+            continue
         out.append(
             f"{s.style}: {s.n_comparable}/{s.n_groups} comparable pairs; classified UNKNOWN in "
             f"{_fmt_rate(s.unknown_rate)} of routed requests (baseline {_fmt_rate(base_unknown)}); "
@@ -403,6 +420,7 @@ def run_paired_comparison(groups: Sequence[PairGroup] = PAIRED_REQUESTS, *,
             mean_llm_rung_wh_ratio=_mean([c.llm_rung_wh_ratio for c in comparable]),
             mean_input_token_ratio=_mean([c.input_token_ratio for c in comparable]),
             n_non_ascii=sum(1 for o in routed if o.routed and not o.text.isascii()),
+            n_refused_unsupported_language=sum(1 for o in routed if o.refused_reason == "unsupported_language"),
         ))
 
     base_unknown = _unknown_rate([outcomes[g.group_id][BASELINE_STYLE] for g in groups])
@@ -418,10 +436,10 @@ def format_report(report: BiasReport) -> str:
     lines = [f"Paired-request routing comparison ({report.n_groups} groups, baseline: {report.baseline_style})",
              "Measurements only: no pass/fail verdict, no model calls, nothing executed.",
              report.scope_note, "",
-             f"{'style':<12}{'comparable':>11}{'UNKNOWN':>9}{'same cat':>10}{'same order':>12}"
+             f"{'style':<12}{'refused':>8}{'comparable':>11}{'UNKNOWN':>9}{'same cat':>10}{'same order':>12}"
              f"{'lost cheap':>12}{'lost HS':>9}{'tokens':>9}{'worst Wh':>10}{'LLM Wh':>9}"]
     for s in report.summaries:
-        lines.append(f"{s.style:<12}{s.n_comparable:>11}{_fmt_rate(s.unknown_rate):>9}"
+        lines.append(f"{s.style:<12}{s.n_refused_unsupported_language:>8}{s.n_comparable:>11}{_fmt_rate(s.unknown_rate):>9}"
                      f"{_fmt_rate(s.category_match_rate):>10}{_fmt_rate(s.attempt_order_match_rate):>12}"
                      f"{s.lost_cheap_access:>12}{s.lost_high_stakes_recognition:>9}"
                      f"{_fmt_ratio(s.mean_input_token_ratio):>9}{_fmt_ratio(s.mean_worst_case_wh_ratio):>10}"
