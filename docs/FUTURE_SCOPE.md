@@ -150,19 +150,54 @@ without incorrectly treating the current calibration work as deferred future sco
 
 ### In current scope
 
-Sprint 5 includes the first bias-monitor routing-outcome comparison across phrasing/language,
-and Sprints 7–8 require independently labeled evaluation data before empirical classifier claims.
+Sprint 5 includes the first small routing-outcome comparison harness. The current runtime scope is
+English only by owner decision. Sprints 7–8 still require independently labeled evaluation data
+before empirical classifier claims.
 
 ### Future extension
 
-Expand beyond the initial evaluation to representative multilingual datasets, repeated
-measurements, subgroup analysis, and longitudinal monitoring of routing accuracy, abstention,
-escalation frequency, selected tier, resource use, and downstream validation outcomes.
+Extend beyond the initial English evaluation to independently reviewed, representative datasets,
+including multilingual and subgroup coverage, repeated measurements, subgroup analysis, and
+longitudinal monitoring of routing accuracy, abstention, escalation frequency, selected tier,
+resource use, and downstream validation outcomes.
 
 ### Expected benefit
 
 Tests whether the efficiency layer introduces systematic disparities beyond the initial
 capstone evaluation.
+
+## FS-017 — Multilingual Routing and Safety Coverage
+
+**Priority:** Medium  
+**Status:** Future  
+**Related:** OI-056, OI-076, FS-004, Stage 3 #12
+
+### Current scope boundary
+
+The owner has explicitly scoped the current runtime to English. No architecture change follows
+from that decision, and Stage 3 #12's language requirement is deferred rather than treated as
+satisfied.
+
+### Future extension
+
+Extend routing and safety coverage beyond English, including:
+
+- classifier vocabulary and language coverage;
+- Stage 0 patterns and Stage 1 keyword rules;
+- estimator/tokenization behavior for non-ASCII text;
+- independently labelled and native-speaker-reviewed data;
+- multilingual routing evaluation; and
+- multilingual safety evaluation.
+
+This extends FS-004's evaluation direction rather than replacing it. The OI-068 Hindi/Hinglish
+measurements are diagnostic evidence of current limitations, not evidence of multilingual quality.
+
+### Expected benefit
+
+Establish whether the constitutional runtime can preserve its routing, safety, and resource-aware
+properties across languages instead of assuming English-oriented controls transfer unchanged.
+
+---
 
 ## FS-005 — Resource-Aware Repair Selection
 
@@ -367,10 +402,19 @@ This is primarily an engineering hardening direction rather than a core research
 
 **Priority:** Medium  
 **Status:** Future  
-**Related:** OI-067, `policy/governance/`
+**Related:** OI-067, OI-075, `policy/governance/`
 
-Complete the governance machinery so that changes to constitutional rules, policy schemas,
-routing rules, and other protected components are automatically attributable and reviewable.
+### In current scope
+
+Sprint 5 now includes the initial governance slice: canonical and GitHub-recognized CODEOWNERS,
+a machine-readable constitutional-file change log, SHA-256 integrity records, and an integrity
+test. Owner verification of branch-protection enforcement is tracked separately under OI-075.
+
+### Future extension
+
+Complete and generalize the governance machinery so that changes to constitutional rules, policy
+schemas, routing rules, and other protected components are automatically attributable and
+reviewable.
 
 Potential capabilities:
 
