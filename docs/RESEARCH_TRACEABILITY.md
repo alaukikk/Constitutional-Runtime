@@ -29,7 +29,7 @@ table that makes that traceability checkable rather than asserted.
 
 | Component | Traces to |
 |---|---|
-| `guardrails/injection_screen.py` | Jailbreak Attacks and Defenses |
+| `guardrails/injection_screen.py` | [SPEC] Stage 0 #5 requires a deterministic/no-AI ingress constraint and the Stage 0 verdict set remains clean/suspicious/blocked. [PROJECT] OI-077 implements an English-scope refusal for requests whose letters are mostly non-Latin script; injection/block patterns run first, the language-only case runs no later stage, and the API records it without session-risk charging. [JUDGMENT] the ≥3 non-Latin-letter threshold, strictly-more-than-half majority threshold, and sole-reason risk exemption. This detects scripts, not languages; Latin-script non-English remains routed under the English-keyword rules (OI-076/FS-017).
 | `guardrails/adversarial/` | Jailbreak Attacks and Defenses (attacks evolve faster than defenses — router/classifier need the same scrutiny) |
 | `policy/engine.py`, `config/constitution.yaml` | NIST AI RMF GenAI Profile |
 | `config/failure_modes.yaml` | NIST AI RMF (Environmental Impacts + Human-AI Configuration sections implicitly require explicit failure semantics) |

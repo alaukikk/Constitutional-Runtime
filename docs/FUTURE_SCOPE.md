@@ -182,8 +182,9 @@ satisfied.
 
 Extend routing and safety coverage beyond English, including:
 
+- language identification for Latin-script non-English input;
 - classifier vocabulary and language coverage;
-- Stage 0 patterns and Stage 1 keyword rules;
+- multilingual Stage 0 patterns and Stage 1 keyword rules;
 - estimator/tokenization behavior for non-ASCII text;
 - independently labelled and native-speaker-reviewed data;
 - multilingual routing evaluation; and
@@ -505,6 +506,27 @@ Provides a principled answer to whether some constitutional constraints should b
 symmetrically on inputs and outputs, rather than expanding output policy by implementation
 preference alone.
 
+## FS-018 — UI Language-Gate Affordance and Detection Limits
+
+**Priority:** Medium  
+**Status:** Future  
+**Related:** OI-077, OI-076, FS-017
+
+### Motivation
+
+The current runtime can enforce its English-only scope at Stage 0 for requests whose letters are mostly non-Latin script, but the refusal is a runtime boundary rather than a complete language-identification system. The API currently returns a plain English scope message; there is no dedicated UI affordance that explains the gate or helps users recover from it.
+
+### Future extension
+
+Provide a UI-level affordance for the unsupported-script refusal, while preserving the distinction between script detection and language identification. The UI may explain that the current runtime supports English and offer a clear rewrite path, but it must not imply that all non-English input is detected: Latin-script non-English such as Hinglish, Spanish, and French can pass the Stage 0 script check.
+
+Language identification for Latin-script non-English input, multilingual Stage 0/1 safety rules, and broader multilingual routing/safety evaluation remain part of FS-017.
+
+### Expected benefit
+
+Makes the current scope boundary understandable and actionable for users without turning a deterministic Stage 0 check into an unsupported claim of general language detection.
+
+
 # Activation Criteria
 
 The future-scope registry should not become the next implementation backlog immediately after the
@@ -555,6 +577,7 @@ The initial recommended order is:
 15. FS-013 — Governance Automation
 16. FS-011 — Expanded Modality Routing
 17. FS-017 - Multilingual routing and safety coverage
+18. FS-018 - UI language-gate affordance and detection limits
 
 This ordering is provisional. Evaluation results from the completed current plan should be allowed
 to reorder it.

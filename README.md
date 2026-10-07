@@ -84,19 +84,29 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 ## Current sprint status
 
-**Current scope: English.** Multilingual routing and safety coverage are future scope (FS-017); no architecture change follows from this owner decision.
+**Current scope: English only.** OI-077 refuses requests whose letters are mostly non-Latin script at Stage 0, but this detects scripts rather than languages. Latin-script non-English (including Hinglish, Spanish, and French) is not detected by the gate and remains routed through the English-keyword Stage 0/1 rules (OI-076). Multilingual routing and safety coverage are future scope (FS-017); a UI affordance for this scope gate is future scope (FS-018). No architecture change follows from the owner scope decision.
 
 **Sprint 3 — Session context + real cost accounting: COMPLETE.**
 
 **Sprint 4 — Graduated routing + feedforward: IMPLEMENTATION COMPLETE; carry-forwards tracked in `docs/OPEN_ENDS.md`.**
 
-**Sprint 5 — Escalation, validation, governance: CLOSURE REVIEW.** Stage 6 validation, non-LLM checks, repair-router logic, live validation/repair API wiring, governance, and the bias-monitor harness are implemented and committed. Sprint 5 closure is not yet claimed pending review of triggered OIs. Branch-protection/code-owner enforcement on `main` is configured and owner-verified.
+**Sprint 5 — Escalation, validation, governance: CLOSURE REVIEW.** Stage 6 validation, bounded repair, non-LLM checks, live validation/repair API wiring, governance, the bias-monitor harness, and the Stage 0 unsupported-script refusal (OI-077) are implemented and committed. Sprint 5 closure is not yet claimed pending review of triggered OIs. Branch-protection/code-owner enforcement on `main` is configured and owner-verified.
 
 The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. The Stage 4 feedforward layer is also committed and integrated, providing templated route/outcome text and a high-cost confirmation gate. The API exposes a `feedforward` response field alongside the confirmation fields where applicable. The small-classifier implementation and retrieval prototype are now also committed; the complete RAG generation path is intentionally not yet implemented.
 
-The latest owner-reported local full-suite run was **562 passed, 1 skipped**. This is an owner-reported result; no independent test run is claimed here.
+The latest owner-reported local full-suite run was **614 passed, 1 skipped**. This is an owner-reported result; no independent test run is claimed here.
 
 Carry-forwards from Sprint 4 include the `CLASSIFICATION` eligibility decision, classifier calibration/evaluation, the complete RAG generation path, empirical resource measurements, and the remaining feedforward/user-study decisions. These are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
+
+### Stage 0 unsupported-script refusal (OI-077)
+
+The live API refuses a request at Stage 0 when its letters are mostly non-Latin script. The response is blocked with `block_reason="unsupported_language"`, `tier_used="blocked_stage0"`, and the plain English message: "This version currently supports English only. Please rewrite your request in English." No later stage runs and no tier/cache execution occurs.
+
+When `unsupported_language` is the sole matched Stage 0 reason, the session records the turn with a clean risk input, so the scope refusal adds **no session risk**. If an injection or suspicious pattern also matches, the language-only exemption does not apply and normal blocking/risk charging is preserved. The turn is still recorded and audited as blocked.
+
+This is a **script** check, not language identification. Latin-script non-English such as Hinglish, Spanish, or French is not refused by this gate and remains subject to the English-keyword Stage 0/1 rules. Multilingual routing/safety coverage is future scope (FS-017); a UI affordance for the gate is future scope (FS-018).
+
+Related tests: `tests/guardrails/test_language_gate.py` and `tests/api/test_unsupported_language.py`.
 
 The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, feedforward/cost-gate integration, small classifier, and retrieval prototype. Sprint 4 implementation and automated test verification are complete; Stage 6 validation, repair-router logic, and live validation/repair integration are committed and tracked in `docs/OPEN_ENDS.md`.
 
