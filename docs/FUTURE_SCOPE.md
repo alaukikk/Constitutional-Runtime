@@ -554,6 +554,7 @@ The initial recommended order is:
 14. FS-012 — Production-Grade Session Infrastructure
 15. FS-013 — Governance Automation
 16. FS-011 — Expanded Modality Routing
+17. FS-017 - Multilingual routing and safety coverage
 
 This ordering is provisional. Evaluation results from the completed current plan should be allowed
 to reorder it.
