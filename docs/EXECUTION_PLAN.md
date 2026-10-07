@@ -158,9 +158,12 @@ Rendering failures currently fail open so execution can continue without feedfor
 - Feedforward outcome disclosure — later repair escalation is disclosed in the response outcome text.
 - `tests/escalation/test_repair_router.py` — coverage for target selection, the one-escalation bound, cumulative cost ceiling, cap-check failures, safety-leakage/non-retry cases, validator errors, malformed inputs, and withholding semantics.
 - `policy/governance/` — governance implementation, including canonical/project CODEOWNERS, GitHub-recognized `.github/CODEOWNERS`, machine-readable `change_log.jsonl`, and constitutional-file integrity checking.
-- `triage/bias_monitor.py` — pure-planner paired-request harness; no model calls and no classifier modification.
+- `triage/bias_monitor.py` — pure-planner paired-request harness; no model calls and no classifier modification. Post-OI-077, Devanagari/non-Latin-script probes are reported as refused at Stage 0 rather than routed; Latin-script non-English remains a known limit.
+- `guardrails/injection_screen.py` — Stage 0 unsupported-script refusal (OI-077): deterministic non-Latin-script majority check, English-only scope response, no later-stage execution, and no session-risk charge when the refusal is the sole matched pattern. This is a script gate, not language identification; Latin-script non-English remains routed (OI-076/FS-017).
+- `tests/guardrails/test_language_gate.py` — unit coverage for script detection, thresholds, injection/suspicious-pattern precedence, sole-reason risk exemption, and the scripts-not-languages boundary.
+- `tests/api/test_unsupported_language.py` — live-pipeline coverage for `block_reason="unsupported_language"`, English-only response, no execution/cache, no risk accumulation for language-only refusals, charging when an attack/suspicious pattern also matches, and audit/turn recording.
 
-**Current scope:** English only by owner decision. Stage 3 #12 names languages, so its multilingual portion is deferred rather than treated as satisfied; multilingual routing and safety coverage are future scope FS-017.
+**Current scope:** English only by owner decision. OI-077 adds a Stage 0 refusal for requests whose letters are mostly non-Latin script, but it detects scripts rather than languages. Latin-script non-English remains routed through English-keyword Stage 0/1 rules. Stage 3 #12's multilingual portion is deferred rather than treated as satisfied; multilingual routing and safety coverage are future scope FS-017, and UI language-gate affordance is future scope FS-018.
 
 ### Remaining Sprint 5 closure work
 
@@ -168,7 +171,7 @@ Rendering failures currently fail open so execution can continue without feedfor
 - Review every Sprint 5 OI whose trigger has fired before claiming closure, including provisional OI-065 and validator-error decision OI-074.
 - Repair-router N1 remains a provisional implementation judgment tracked under `OI-065`; the terminal `WITHHOLD` behavior is resolved under `OI-066` and remains outside the frozen architecture.
 
-**Verification boundary:** Stage 6 validation, repair-router logic, live API validation/repair wiring, governance, and the bias-monitor harness are committed on `main`. The owner reports **562 tests passed, 1 skipped**; this is not an independent test-run claim. Sprint 5 closure is not claimed until the closure review of triggered OIs is complete. Branch-protection enforcement on `main` has been configured and verified by the owner.
+**Verification boundary:** Stage 6 validation, bounded repair, live API validation/repair wiring, governance, the bias-monitor harness, and the Stage 0 unsupported-script refusal (OI-077) are committed on `main`. The owner reports **614 tests passed, 1 skipped**; this is not an independent test-run claim. Sprint 5 closure is not claimed until the closure review of triggered OIs is complete. Branch-protection enforcement on `main` has been configured and verified by the owner.
 
 **Test target:** the live-wiring tests cover deliberate validation-failure and Stage 5 execution-error injection through the pipeline. The original "bad policy match" injection remains covered at the policy-engine level rather than being claimed as the live Stage 6 wiring test; preserve that distinction in coverage reporting. `tests/api/test_main_validation_wiring.py` covers the live validation/repair wiring.
 
