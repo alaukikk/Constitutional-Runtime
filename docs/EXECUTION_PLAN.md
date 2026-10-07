@@ -145,7 +145,7 @@ Rendering failures currently fail open so execution can continue without feedfor
 4. Carry forward the empirical resource, fairness, human-agency, and cost-accounting work into the appropriate later evaluation sprint (`OI-055`–`OI-059`).
 
 **Verification status:** the planner, API integration, human-checkpoint implementation, feedforward implementation, small-classifier implementation, synthetic seed, retrieval prototype, and associated tests are committed on `main`. The latest full-suite run reports **414 tests passed, 1 skipped (local run, Windows, Python 3.11.7)**. The skipped test is the Windows symlink test. Sprint 4 automated test verification is complete; carry-forwards remain tracked in `OPEN_ENDS.md`.
-## Sprint 5 — Escalation, validation, governance (IN PROGRESS)
+## Sprint 5 — Escalation, validation, governance (CLOSURE REVIEW)
 
 ### Implemented
 
@@ -157,16 +157,20 @@ Rendering failures currently fail open so execution can continue without feedfor
 - Cache semantics — cache writes occur only after validation, and cache hits are validated before release.
 - Feedforward outcome disclosure — later repair escalation is disclosed in the response outcome text.
 - `tests/escalation/test_repair_router.py` — coverage for target selection, the one-escalation bound, cumulative cost ceiling, cap-check failures, safety-leakage/non-retry cases, validator errors, malformed inputs, and withholding semantics.
+- `policy/governance/` — governance implementation, including canonical/project CODEOWNERS, GitHub-recognized `.github/CODEOWNERS`, machine-readable `change_log.jsonl`, and constitutional-file integrity checking.
+- `triage/bias_monitor.py` — pure-planner paired-request harness; no model calls and no classifier modification.
 
-### Remaining Sprint 5 work
+**Current scope:** English only by owner decision. Stage 3 #12 names languages, so its multilingual portion is deferred rather than treated as satisfied; multilingual routing and safety coverage are future scope FS-017.
 
-- `policy/governance/change_log.py` and `policy/governance/CODEOWNERS` are present but currently empty; governance enforcement is therefore not implemented yet.
-- `triage/bias_monitor.py` is present but currently empty; the first routing-outcome comparison across phrasing/language remains to be implemented.
+### Remaining Sprint 5 closure work
+
+- Owner-verified branch-protection/code-owner enforcement is recorded under `OI-075`; the remaining task is closure review, not configuration work.
+- Review every Sprint 5 OI whose trigger has fired before claiming closure, including provisional OI-065 and validator-error decision OI-074.
 - Repair-router N1 remains a provisional implementation judgment tracked under `OI-065`; the terminal `WITHHOLD` behavior is resolved under `OI-066` and remains outside the frozen architecture.
 
-**Verification boundary:** validator, repair-router, and live API validation/repair-wiring tests are committed on `main`. Sprint 5 is still not complete and no end-to-end Sprint 5 completion claim is made because governance enforcement and the bias monitor remain unimplemented. The owner-reported local full-suite result is tracked in `README.md`; it is not an independent verification claim.
+**Verification boundary:** Stage 6 validation, repair-router logic, live API validation/repair wiring, governance, and the bias-monitor harness are committed on `main`. The owner reports **562 tests passed, 1 skipped**; this is not an independent test-run claim. Sprint 5 closure is not claimed until the closure review of triggered OIs is complete. Branch-protection enforcement on `main` has been configured and verified by the owner.
 
-**Test target:** deliberately inject a validation failure and a Stage 5 execution error through the live pipeline and confirm the correct repair/escalation/withhold path fires for each, while preserving the frozen Stage 0→7 ordering. This is covered by `tests/api/test_main_validation_wiring.py`.
+**Test target:** the live-wiring tests cover deliberate validation-failure and Stage 5 execution-error injection through the pipeline. The original "bad policy match" injection remains covered at the policy-engine level rather than being claimed as the live Stage 6 wiring test; preserve that distinction in coverage reporting. `tests/api/test_main_validation_wiring.py` covers the live validation/repair wiring.
 
 ## Sprint 6 — Modality awareness, hardened adversarial testing
 
