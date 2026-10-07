@@ -9,6 +9,12 @@ REQUIRE_HUMAN (Stage 1 or session-derived) is satisfied by a confirm-before-exec
 the first call returns needs_confirmation plus a single-use token bound to session, exact text, and rule set; 
 the caller re-submits with the token to proceed. A token never overrides a BLOCK.
 
+Unsupported script (OI-077): Stage 0 refuses requests whose letters are mostly non-Latin
+script. The refusal returns block_reason "unsupported_language" and a plain English-only
+message, runs no later stage, and charges NO session risk when it is the only matched
+pattern (any injection/suspicious pattern alongside it is charged as before). It detects
+scripts, not languages: Latin-script non-English (e.g. Hinglish) is still routed (OI-076).
+
 --- Sprint 5 additions (Stage 6 validation + bounded repair; OI-064/OI-066) ---
 
 Every answer from every tier, cache hits included, is validated (validation/
@@ -92,7 +98,9 @@ from escalation.repair_router import (
     FailureKind, RepairAction, WITHHELD_MESSAGE, WITHHELD_MESSAGE_EXECUTION_ERROR,
     WITHHELD_MESSAGE_VALIDATOR_ERROR, decide_repair,
 )
-from guardrails.injection_screen import screen_request, ScreenVerdict
+from guardrails.injection_screen import (
+    UNSUPPORTED_LANGUAGE, ScreenVerdict, is_language_refusal_only, screen_request,
+)
 from policy.engine import get_policy_engine
 from policy.schemas import PolicyAction, MethodTier, RoutingDecision, TierCostEstimate
 from tiers.cache_lookup import try_cache_lookup, store_cache_entry
@@ -125,6 +133,12 @@ _LLM_TIERS = (MethodTier.LLM_LOW_REASONING, MethodTier.LLM_HIGH_REASONING)
 # User-facing validation wording (owner decision): "passed automated checks",
 # never "verified". The second string is used when the validator itself errored
 # and the answer was released under the low-stakes (fail-open) policy.
+# Shown when Stage 0 refuses a request written (mostly) in a non-Latin script (OI-077).
+# It states a scope limit; it does not say the request was unsafe or against policy.
+# Clients can key on block_reason == "unsupported_language" for their own wording.
+UNSUPPORTED_LANGUAGE_MESSAGE = ("This version currently supports English only. "
+                                "Please rewrite your request in English.")
+
 VALIDATION_PASSED = "passed automated checks"
 VALIDATION_NOT_COMPLETED = ("not validated: automated checks could not be completed for this "
                             "answer (released under the low-stakes failure policy)")
@@ -244,14 +258,31 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
     verdict_str = _screen_verdict_str(screen_result.verdict)
 
     if screen_result.verdict == ScreenVerdict.BLOCKED:
-        state, _ = _session_manager.record_turn(session_id, [], verdict_str, 0.0)
+        # OI-077: an unsupported-script refusal is a scope decision, not a security signal,
+        # so it does not add session risk. The exemption applies ONLY when that is the sole
+        # matched pattern; an injection or suspicious pattern alongside it is charged as
+        # usual. The turn is still recorded (turn count), and the audit record still says
+        # "blocked" -- only the risk input to Stage 2 differs.
+        language_refusal = is_language_refusal_only(screen_result)
+        risk_verdict = "clean" if language_refusal else verdict_str
+        state, _ = _session_manager.record_turn(session_id, [], risk_verdict, 0.0)
+        if language_refusal:
+            rationale = (f"Stage 0 refused request: unsupported language/script "
+                         f"({UNSUPPORTED_LANGUAGE}; the runtime is scoped to English, OI-077). "
+                         f"Session risk not charged: a scope refusal is not a security signal.")
+        else:
+            rationale = (f"Stage 0 blocked request before Stage 1 ran. "
+                         f"Matched patterns: {screen_result.matched_patterns}")
         log_decision(session_id, RoutingDecision(
             selected_tier=MethodTier.CACHE,
             selected_model=None,
-            rationale=f"Stage 0 blocked request before Stage 1 ran. Matched patterns: {screen_result.matched_patterns}",
+            rationale=rationale,
             cost_estimate=TierCostEstimate(tier=MethodTier.CACHE),
             policy_flags=[],
         ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot(), execution="blocked")
+        if language_refusal:
+            return PipelineResult(response=UNSUPPORTED_LANGUAGE_MESSAGE, tier_used="blocked_stage0",
+                                  blocked=True, block_reason=UNSUPPORTED_LANGUAGE)
         return PipelineResult(response="This request could not be processed.",
                                tier_used="blocked_stage0", blocked=True, block_reason="stage0_screen")
 
