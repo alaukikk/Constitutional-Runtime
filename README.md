@@ -8,7 +8,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 `api/` — the front door
 - `main.py` — live Stage 0 → Stage 1 → Stage 2 → Stage 3/5 → Stage 6 → Stage 7 request pipeline
-- `settings.py` — app-level settings (API keys, ports, checkpoint signing secret, env variables)
+- `settings.py` — app-level settings (API keys, ports, checkpoint signing secret, session identity secret/limits, env variables)
 
 `config/` — the rulebook, as data
 - `constitution.yaml` — policy rules (what's allowed, blocked, flagged)
@@ -46,6 +46,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `governance/change_log.jsonl` — committed governance decision records and hashes
 
 `session/` — remembers context across a conversation
+- `identity.py` — server-issued, HMAC-SHA256-signed session tokens and issuance limits
 - `session_state.py` — tracks cumulative risk/cost, turn count, and monotonic constraints across a conversation
 
 `tests/` — automated tests, organized by module/stage as implementation grows
@@ -62,7 +63,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `bias_monitor.py` — paired-request routing-outcome comparison harness; it does not establish fairness
 - `classifier.py` — first-pass keyword classifier; its output feeds the Stage 3 planner in `decision.py`
 - `decision.py` — the Stage 3 planner: builds the cheapest-first routing plan (cache → deterministic → small classifier → RAG → LLM) with per-rung skip reasons and cost estimates
-- `modality_router.py` — planned minimal text/image/audio routing support (Sprint 6)
+- `modality_router.py` — implemented text-only ingress refusal boundary (Sprint 6); this is refusal, not multimodal support
 - `taxonomy.py` — defines the categories used to classify requests
 
 `validation/` — checks the answer before it's shown to anyone
@@ -82,6 +83,19 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `ARCHITECTURE.md` — frozen architecture/specification
 - `CONSTITUTION.md` — constitutional change/decision process
 
+## HTTP contract
+
+The HTTP interface now uses server-issued session tokens:
+
+- `POST /v1/session` issues `v1.<id>.<issued_at>.<HMAC-SHA256>` session tokens.
+- `POST /v1/respond` requires `session_token`; the old client-chosen `session_id` field is no longer part of the HTTP interface.
+- Missing, forged, altered, foreign-secret, or expired session tokens return HTTP **401** with `session_invalid` or `session_expired`, before any request stage runs.
+- Unsupported non-text input is refused with `block_reason="unsupported_modality"`; non-JSON request bodies to `/v1/respond` return HTTP **415**.
+- The modality refusal boundary does not invoke a tier/model and does not add session risk for the modality problem alone. The text's own Stage 0 verdict remains authoritative.
+- `SESSION_SECRET` should be explicitly set in any real deployment. An empty value causes a random per-process secret to be generated with a warning; the current TTL and issuance-rate limits are placeholders.
+
+The HTTP boundary is text-only. The runtime does not claim multimodal support, and it does not claim multilingual support.
+
 ## Current sprint status
 
 **Current scope: English only.** OI-077 refuses requests whose letters are mostly non-Latin script at Stage 0, but this detects scripts rather than languages. Latin-script non-English (including Hinglish, Spanish, and French) is not detected by the gate and remains routed through the English-keyword Stage 0/1 rules (OI-076). Multilingual routing and safety coverage are future scope (FS-017); a UI affordance for this scope gate is future scope (FS-018). No architecture change follows from the owner scope decision.
@@ -90,13 +104,15 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 **Sprint 4 — Graduated routing + feedforward: IMPLEMENTATION COMPLETE; carry-forwards tracked in `docs/OPEN_ENDS.md`.**
 
-**Sprint 5 — Escalation, validation, governance: CLOSURE REVIEW.** Stage 6 validation, bounded repair, non-LLM checks, live validation/repair API wiring, governance, the bias-monitor harness, and the Stage 0 unsupported-script refusal (OI-077) are implemented and committed. Sprint 5 closure is not yet claimed pending review of triggered OIs. Branch-protection/code-owner enforcement on `main` is configured and owner-verified.
+**Sprint 5 — Escalation, validation, governance: CLOSED by owner decision.** Stage 6 validation, bounded repair, live validation/repair wiring, governance, the bias-monitor harness, and the Stage 0 unsupported-script refusal (OI-077) are implemented. OI-065, OI-069, and OI-074 are resolved as documented in `docs/OPEN_ENDS.md`. OI-054 remains open as a no-claim guard: **RAG is NOT complete.**
 
 The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. The Stage 4 feedforward layer is also committed and integrated, providing templated route/outcome text and a high-cost confirmation gate. The API exposes a `feedforward` response field alongside the confirmation fields where applicable. The small-classifier implementation and retrieval prototype are now also committed; the complete RAG generation path is intentionally not yet implemented.
 
-The latest owner-reported local full-suite run was **614 passed, 1 skipped**. This is an owner-reported result; no independent test run is claimed here.
+The latest owner-reported local full-suite run is **816 passed, 1 skipped**. This is an owner-reported result; no independent test run is claimed here.
 
-Carry-forwards from Sprint 4 include the `CLASSIFICATION` eligibility decision, classifier calibration/evaluation, the complete RAG generation path, empirical resource measurements, and the remaining feedforward/user-study decisions. These are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
+**Sprint 6 — IN PROGRESS.** Server-issued session identity and the text-only ingress boundary are implemented. CI, the full audit schema, the adversarial suites, and protection for `/.github/workflows/` in both CODEOWNERS copies are not yet complete. Real LLM integration is deferred to Sprint 7. OI-013 is resolved only for client-chosen/forged IDs; OI-078 tracks the residual fresh-session reset path. OI-040 remains open, narrowed to human-identity verification. OI-003 and OI-054 remain open.
+
+Carry-forwards and unresolved work are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
 
 ### Stage 0 unsupported-script refusal (OI-077)
 
@@ -108,7 +124,7 @@ This is a **script** check, not language identification. Latin-script non-Englis
 
 Related tests: `tests/guardrails/test_language_gate.py` and `tests/api/test_unsupported_language.py`.
 
-The current `main` branch contains the Sprint 3 session-state, cost-estimation, model-selection, and API wiring work, plus the Sprint 4 graduated-routing planner, human checkpoint, feedforward/cost-gate integration, small classifier, and retrieval prototype. Sprint 4 implementation and automated test verification are complete; Stage 6 validation, repair-router logic, and live validation/repair integration are committed and tracked in `docs/OPEN_ENDS.md`.
+The current `main` branch contains the Sprint 3 session-state/cost/model-selection work, Sprint 4 graduated routing/feedforward, Sprint 5 validation/repair/governance/bias-monitor work, and the Sprint 6 server-issued session identity and text-only ingress boundary. The RAG generation path is intentionally incomplete, and Sprint 6 is not complete.
 
 ## Root files
 - `README.md` — project overview and repository map
