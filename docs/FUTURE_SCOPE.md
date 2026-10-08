@@ -358,6 +358,10 @@ decline to intervene.
 Sprint 6 includes the minimal `triage/modality_router.py` implementation and the associated
 adversarial-testing work. This future entry does not defer that planned Sprint 6 deliverable.
 
+### Current boundary
+
+Sprint 6 implements only a text-only refusal boundary (OI-079). **Real multimodal support is not planned in the current execution plan.** The future work below is a separate expansion, not a claim that the current runtime supports image/audio/video input.
+
 ### Future extension
 
 Extend the routing/security model beyond text to image, audio, and other modalities.
@@ -380,22 +384,62 @@ modalities.
 
 **Priority:** Medium  
 **Status:** Future  
-**Related:** OI-013, OI-020, OI-021, OI-040, OI-041
+**Related:** OI-013, OI-020, OI-021, OI-040, OI-041, OI-078
 
 Replace the current development-oriented session infrastructure with production-grade state
 management where deployment requirements justify it.
 
 Potential work includes:
 
-- server-issued/signed session identity;
+- server-side accounts/user identity binding (see FS-019);
 - upstream authentication binding;
-- distributed storage;
+- shared/distributed session and limiter storage (see FS-020);
 - atomic multi-instance updates;
 - bounded state retention;
 - safe eviction; and
 - recovery semantics that cannot silently reset security-relevant context.
 
+The current server-issued/signed session identity is a Sprint 6 implementation, not the production-grade endpoint of this future item.
+
 This is primarily an engineering hardening direction rather than a core research contribution.
+
+---
+
+## FS-019 — Server-Side Accounts and User Identity
+
+**Priority:** Medium  
+**Status:** Future  
+**Related:** OI-040, OI-078, FS-012
+
+Provide authenticated server-side user identity so a session can be bound to an account rather than only to possession of a server-issued session token.
+
+This would close the current residual in OI-078 (a client can still request a NEW clean session within the placeholder issuance limits) and the human-identity gap in OI-040.
+
+This is out of scope for the current capstone execution plan.
+
+---
+
+## FS-020 — Shared Session and Limiter Storage
+
+**Priority:** Medium  
+**Status:** Future  
+**Related:** OI-020, OI-041, OI-078, FS-012
+
+Move session state and session-issuance limiter state from per-process in-memory storage to shared, durable infrastructure with atomic updates and safe eviction/recovery semantics.
+
+The current implementation intentionally remains per-process/in memory; this future work is needed for multi-worker or distributed deployment and to prevent restarts/workers from silently resetting security-relevant state.
+
+---
+
+## FS-021 — Trusted Proxy Handling for Client Keys
+
+**Priority:** Low  
+**Status:** Future  
+**Related:** OI-078, FS-019
+
+If deployment occurs behind a trusted reverse proxy, define an authenticated/trusted proxy boundary before deriving a session-issuance client key from forwarded address information.
+
+The current implementation deliberately does **not** trust proxy headers. Future support should define which proxy is trusted, how that trust is configured, and how spoofed forwarded headers are prevented from becoming an issuance-rate-limit bypass.
 
 ---
 
@@ -574,10 +618,13 @@ The initial recommended order is:
 ### Phase D — Broaden deployment capability
 13. FS-008 — Real Multi-Provider / Model Integration
 14. FS-012 — Production-Grade Session Infrastructure
-15. FS-013 — Governance Automation
-16. FS-011 — Expanded Modality Routing
-17. FS-017 - Multilingual routing and safety coverage
-18. FS-018 - UI language-gate affordance and detection limits
+15. FS-019 — Server-Side Accounts and User Identity
+16. FS-020 — Shared Session and Limiter Storage
+17. FS-021 — Trusted Proxy Client-Key Handling
+18. FS-013 — Governance Automation
+19. FS-011 — Expanded Modality Routing
+20. FS-017 - Multilingual routing and safety coverage
+21. FS-018 - UI language-gate affordance and detection limits
 
 This ordering is provisional. Evaluation results from the completed current plan should be allowed
 to reorder it.
