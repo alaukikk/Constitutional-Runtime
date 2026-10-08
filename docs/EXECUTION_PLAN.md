@@ -145,43 +145,55 @@ Rendering failures currently fail open so execution can continue without feedfor
 4. Carry forward the empirical resource, fairness, human-agency, and cost-accounting work into the appropriate later evaluation sprint (`OI-055`–`OI-059`).
 
 **Verification status:** the planner, API integration, human-checkpoint implementation, feedforward implementation, small-classifier implementation, synthetic seed, retrieval prototype, and associated tests are committed on `main`. The latest full-suite run reports **414 tests passed, 1 skipped (local run, Windows, Python 3.11.7)**. The skipped test is the Windows symlink test. Sprint 4 automated test verification is complete; carry-forwards remain tracked in `OPEN_ENDS.md`.
-## Sprint 5 — Escalation, validation, governance (CLOSURE REVIEW)
+## Sprint 5 — Escalation, validation, governance (CLOSED)
 
-### Implemented
+**Owner decision:** Sprint 5 is closed. The owner-reported full-suite result is **816 passed, 1 skipped**. This is an owner-reported result; no independent test-run claim is made here.
 
-- `validation/non_llm_checks.py` — cheap rule-based output checks: non-empty output, size/control-character checks, and the existing output safety-leakage filter.
-- `validation/validator.py` — Stage 6 validator using the non-LLM checks. Validator-level errors follow the existing `failure_modes.yaml` policy semantics; the implementation does not consult the classifier's `HIGH_STAKES` category when deciding fail-open/fail-closed behavior.
-- `escalation/repair_router.py` — cross-cutting repair decision module. It supports validation failures and execution errors, escalates strictly upward, permits at most one escalation, checks cumulative worst-case estimates against the existing high-cost limits, and withholds when repair is unavailable or unsafe.
-- `api/main.py` — live Stage 6 validation/repair wiring after execution, with repair routing on validation failure or execution error; covered by `tests/api/test_main_validation_wiring.py`.
-- `audit/audit_log.py` — `executed_withheld` execution state and `validation_trace` for validation/repair/withholding outcomes.
-- Cache semantics — cache writes occur only after validation, and cache hits are validated before release.
-- Feedforward outcome disclosure — later repair escalation is disclosed in the response outcome text.
-- `tests/escalation/test_repair_router.py` — coverage for target selection, the one-escalation bound, cumulative cost ceiling, cap-check failures, safety-leakage/non-retry cases, validator errors, malformed inputs, and withholding semantics.
-- `policy/governance/` — governance implementation, including canonical/project CODEOWNERS, GitHub-recognized `.github/CODEOWNERS`, machine-readable `change_log.jsonl`, and constitutional-file integrity checking.
-- `triage/bias_monitor.py` — pure-planner paired-request harness; no model calls and no classifier modification. Post-OI-077, Devanagari/non-Latin-script probes are reported as refused at Stage 0 rather than routed; Latin-script non-English remains a known limit.
-- `guardrails/injection_screen.py` — Stage 0 unsupported-script refusal (OI-077): deterministic non-Latin-script majority check, English-only scope response, no later-stage execution, and no session-risk charge when the refusal is the sole matched pattern. This is a script gate, not language identification; Latin-script non-English remains routed (OI-076/FS-017).
-- `tests/guardrails/test_language_gate.py` — unit coverage for script detection, thresholds, injection/suspicious-pattern precedence, sole-reason risk exemption, and the scripts-not-languages boundary.
-- `tests/api/test_unsupported_language.py` — live-pipeline coverage for `block_reason="unsupported_language"`, English-only response, no execution/cache, no risk accumulation for language-only refusals, charging when an attack/suspicious pattern also matches, and audit/turn recording.
+### Completed
 
-**Current scope:** English only by owner decision. OI-077 adds a Stage 0 refusal for requests whose letters are mostly non-Latin script, but it detects scripts rather than languages. Latin-script non-English remains routed through English-keyword Stage 0/1 rules. Stage 3 #12's multilingual portion is deferred rather than treated as satisfied; multilingual routing and safety coverage are future scope FS-017, and UI language-gate affordance is future scope FS-018.
+- Stage 6 non-LLM validation and live validation/repair wiring.
+- Bounded repair behavior.
+- Governance implementation and owner-verified branch-protection/code-owner enforcement on `main`.
+- Bias-monitor harness and post-OI-077 scope corrections.
+- Stage 0 unsupported-script refusal (OI-077).
+- The Sprint 5 decision review resolved OI-065 and OI-069 as normative project behavior and resolved OI-074 with its scoped validator-error semantics.
+- OI-054 remains open as a no-claim guard: **RAG is NOT complete.**
+- OI-056 remains updated with the post-OI-077 evidence.
+- OI-003 remains open and carries into Sprint 6.
 
-### Remaining Sprint 5 closure work
+### Decision outcomes carried forward
 
-- Owner-verified branch-protection/code-owner enforcement is recorded under `OI-075`; the remaining task is closure review, not configuration work.
-- Review every Sprint 5 OI whose trigger has fired before claiming closure, including provisional OI-065 and validator-error decision OI-074.
-- Repair-router N1 remains a provisional implementation judgment tracked under `OI-065`; the terminal `WITHHOLD` behavior is resolved under `OI-066` and remains outside the frozen architecture.
+- **OI-065 — Resolved, normative:** one upward repair escalation, bounded by cumulative cost. Numeric limits stay provisional under OI-045.
+- **OI-069 — Resolved, normative:** no retry on safety-leak failures or validator errors; intermediate rungs may be skipped; human acknowledgement of cost does not authorize indefinite further escalation.
+- **OI-074 — Resolved, normative:** validator errors follow `failure_modes.yaml`; if no applicable fail-closed rule exists, fail-open is permitted and audited. This does not mean all validator errors fail open.
+- `ARCHITECTURE.md` remains frozen and was not edited.
 
-**Verification boundary:** Stage 6 validation, bounded repair, live API validation/repair wiring, governance, the bias-monitor harness, and the Stage 0 unsupported-script refusal (OI-077) are committed on `main`. The owner reports **614 tests passed, 1 skipped**; this is not an independent test-run claim. Sprint 5 closure is not claimed until the closure review of triggered OIs is complete. Branch-protection enforcement on `main` has been configured and verified by the owner.
+**Verification boundary:** Sprint 5 closure is an owner decision. The 816/1 result is owner-reported. RAG completion, classifier calibration, empirical resource measurement, and the remaining open items remain outside the closure claim.
 
-**Test target:** the live-wiring tests cover deliberate validation-failure and Stage 5 execution-error injection through the pipeline. The original "bad policy match" injection remains covered at the policy-engine level rather than being claimed as the live Stage 6 wiring test; preserve that distinction in coverage reporting. `tests/api/test_main_validation_wiring.py` covers the live validation/repair wiring.
+## Sprint 6 — Modality, identity hardening, audit, adversarial testing (IN PROGRESS)
 
-## Sprint 6 — Modality awareness, hardened adversarial testing
+### Completed
 
-- `triage/modality_router.py` — even a minimal "non-text input gets limited/flagged support" is sufficient for this sprint.
-- `guardrails/adversarial/router_attack_suite.py`, `classifier_attack_suite.py` — run against the *whole* pipeline, not just Stage 0 in isolation.
-- Full audit schema implemented, replacing the Sprint 1 partial version.
+- **Server-issued session identity (OI-013/OI-040 scope):** HTTP clients no longer choose the authoritative session ID. `POST /v1/session` issues a server-signed token; `POST /v1/respond` requires and verifies it before processing. OI-013 is resolved only for client-chosen and forged IDs; OI-078 tracks the residual ability to request a NEW clean session. OI-040 is narrowed but remains open because possession of the server-issued token does not prove human identity.
+- **Text-only ingress boundary (OI-079):** unsupported image/audio/video/file/attachment-style input, a declared non-text modality, non-string `text`, or embedded base64 media data URI is refused at ingress with `unsupported_modality`; no tier/model runs. Non-JSON bodies are refused with HTTP 415. The modality problem alone adds no session risk and does not consume a confirmation token; the text's own Stage 0 verdict remains authoritative.
 
-**Test:** adversarial suite catches known jailbreak/injection payloads; confirm the router/classifier themselves resist the misclassification attacks identified in architecture review.
+### Remaining
+
+- **GitHub Actions CI:** not yet implemented. The existing governance integrity test is not yet an automated CI merge gate.
+- **Full audit schema:** not yet complete. Finalize only genuinely measured fields; measured latency is acceptable, while energy remains explicitly an estimate while the LLM is a stub. OI-042 remains open until the full audit-schema work is complete.
+- **Adversarial suites:** not yet completed against the full constitutional pipeline.
+- **`/.github/workflows/` CODEOWNERS protection:** not yet added to both CODEOWNERS copies.
+- OI-022 remains open until CI/test-running assumptions are exercised under CI.
+
+### Sprint 6 decisions
+
+- Session identity: server-issued session identity (OI-013/OI-040).
+- Runtime scope: text-only; non-text input is refused at ingress without AI invocation and without session-risk charging for the modality refusal alone.
+- Audit: record only genuinely measured fields; energy is labelled an estimate while the LLM is a stub.
+- CI: GitHub Actions is a Sprint 6 deliverable, and `/.github/workflows/` is to be protected by both CODEOWNERS copies.
+- Real LLM integration is deferred to **Sprint 7**.
+
+**Limits:** server-issued IDs stop client-chosen and forged IDs; they do not stop a client asking for a NEW session. The client key is weak, state is per-process/in-memory, and the issuance limits are placeholders (OI-078/OI-020/OI-041). The text-only boundary removes the cross-modal surface by refusing it; it does not claim to recognise every possible smuggling method. The runtime remains English only and does not claim multilingual support.
 
 ## Sprints 7–8 — The actual experiment
 
