@@ -391,13 +391,15 @@ management where deployment requirements justify it.
 
 Potential work includes:
 
-- server-issued/signed session identity;
+- server-side accounts/user identity binding (see FS-019);
 - upstream authentication binding;
-- distributed storage;
+- shared/distributed session and limiter storage (see FS-020);
 - atomic multi-instance updates;
 - bounded state retention;
 - safe eviction; and
 - recovery semantics that cannot silently reset security-relevant context.
+
+The current server-issued/signed session identity is a Sprint 6 implementation, not the production-grade endpoint of this future item.
 
 This is primarily an engineering hardening direction rather than a core research contribution.
 
