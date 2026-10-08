@@ -618,10 +618,13 @@ The initial recommended order is:
 ### Phase D — Broaden deployment capability
 13. FS-008 — Real Multi-Provider / Model Integration
 14. FS-012 — Production-Grade Session Infrastructure
-15. FS-013 — Governance Automation
-16. FS-011 — Expanded Modality Routing
-17. FS-017 - Multilingual routing and safety coverage
-18. FS-018 - UI language-gate affordance and detection limits
+15. FS-019 — Server-Side Accounts and User Identity
+16. FS-020 — Shared Session and Limiter Storage
+17. FS-021 — Trusted Proxy Client-Key Handling
+18. FS-013 — Governance Automation
+19. FS-011 — Expanded Modality Routing
+20. FS-017 - Multilingual routing and safety coverage
+21. FS-018 - UI language-gate affordance and detection limits
 
 This ordering is provisional. Evaluation results from the completed current plan should be allowed
 to reorder it.
