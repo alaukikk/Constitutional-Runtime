@@ -9,6 +9,17 @@ REQUIRE_HUMAN (Stage 1 or session-derived) is satisfied by a confirm-before-exec
 the first call returns needs_confirmation plus a single-use token bound to session, exact text, and rule set; 
 the caller re-submits with the token to proceed. A token never overrides a BLOCK.
 
+Session identity (OI-013): over HTTP the client never supplies a session id. POST /v1/session issues
+a server-signed token (session/identity.py); /v1/respond verifies it and passes the verified id to
+process_request. This stops client-chosen or forged ids; it does NOT stop a client asking for new
+sessions (bounded by an issuance rate limit, OI-078) and it is not human identity (OI-040).
+
+Text-only boundary (OI-079): the runtime is text-only. process_ingress() refuses image, audio, video,
+file or other non-text input (populated non-text fields, a declared non-text modality, a non-string
+`text`, embedded base64 media) with block_reason "unsupported_modality", runs no tier, and charges no
+session risk for the modality problem alone. The text's own Stage 0 verdict is still honoured, so an
+attack phrase cannot hide behind an attachment. Non-JSON bodies are refused with HTTP 415.
+
 Unsupported script (OI-077): Stage 0 refuses requests whose letters are mostly non-Latin
 script. The refusal returns block_reason "unsupported_language" and a plain English-only
 message, runs no later stage, and charges NO session risk when it is the only matched
@@ -85,9 +96,11 @@ for anything unrecognized rather than crashing.
 from __future__ import annotations
 import logging
 from dataclasses import asdict, dataclass, replace
-from typing import Optional
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from api.settings import settings
+from session.identity import SessionIdentity
 from interface.human_checkpoint import CheckpointManager, confirmation_message
 from interface.feedforward import (
     GATE_COST_ID, evaluate_gate, safe_escalation_outcome, safe_outcome, safe_preview,
@@ -109,6 +122,7 @@ from tiers.small_classifier import try_small_classifier
 from tiers.rag_small_model import try_rag_small_model
 from tiers.llm_call import call_llm
 from triage.decision import plan_request
+from triage.modality_router import UNSUPPORTED_MODALITY, check_modality
 from audit.audit_log import log_decision
 from session.session_state import SessionManager, ANONYMOUS_SESSION, ACTION_ORDER
 from validation.validator import ValidationResult, validate_output
@@ -139,6 +153,10 @@ _LLM_TIERS = (MethodTier.LLM_LOW_REASONING, MethodTier.LLM_HIGH_REASONING)
 UNSUPPORTED_LANGUAGE_MESSAGE = ("This version currently supports English only. "
                                 "Please rewrite your request in English.")
 
+# Shown when ingress refuses non-text input (OI-079). A scope statement, not a safety judgment.
+UNSUPPORTED_MODALITY_MESSAGE = ("This version supports plain text only. Please send your request as "
+                                "English text, without images, audio, files or other attachments.")
+
 VALIDATION_PASSED = "passed automated checks"
 VALIDATION_NOT_COMPLETED = ("not validated: automated checks could not be completed for this "
                             "answer (released under the low-stakes failure policy)")
@@ -152,6 +170,23 @@ _session_manager = SessionManager()
 def configure_session_manager(manager: SessionManager) -> None:
     global _session_manager
     _session_manager = manager
+
+
+# Server-issued session identity (OI-013). The HTTP layer accepts only tokens this object
+# signed, so a client can no longer choose its own session ID. process_request() itself still
+# takes a plain session id: it is the TRUSTED inner interface, reachable over HTTP only with an
+# id taken from a verified token (in-process callers and tests pass ids directly).
+_identity = SessionIdentity(
+    secret=settings.session_secret or None,
+    ttl_seconds=settings.session_ttl_seconds,
+    issue_limit=settings.session_issue_limit,
+    issue_window_seconds=settings.session_issue_window_seconds,
+)
+
+
+def configure_identity(identity: SessionIdentity) -> None:
+    global _identity
+    _identity = identity
 
 
 _checkpoint = CheckpointManager(secret=settings.checkpoint_secret or None)
@@ -517,17 +552,91 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
                           block_reason=f"output_withheld_{failure}")
 
 
+# Stage 0 matches that are themselves scope refusals, not attack signals: they do not stop a
+# request from being treated as "modality problem alone" (an image sent with no caption has
+# empty_input; non-Latin text is the unsupported-script refusal).
+_SCOPE_ONLY_STAGE0_PATTERNS = {"empty_input", UNSUPPORTED_LANGUAGE}
+
+
+def _refuse_unsupported_modality(payload, reasons, session_id: str | None) -> PipelineResult:
+    """Refuse non-text input (OI-079). Runs no tier and calls no model. Session risk is NOT charged
+    for the modality problem alone; if the request's own TEXT carries an attack signal, that is still
+    handled and charged exactly as it would be without the attachment."""
+    session_id = session_id or ANONYMOUS_SESSION
+    text = payload.get("text") if isinstance(payload, Mapping) else None
+
+    risk_verdict, stage0_result, screened = "clean", None, False
+    if isinstance(text, str):
+        screen = screen_request(text)
+        screened = True
+        stage0_result = _screen_verdict_str(screen.verdict)
+        if screen.verdict == ScreenVerdict.BLOCKED and not set(screen.matched_patterns) <= _SCOPE_ONLY_STAGE0_PATTERNS:
+            # An injection phrase (or oversized/errored input) is not hidden by an attachment:
+            # take the normal Stage 0 path, which blocks and charges as usual.
+            return process_request(text, session_id, None)
+        if screen.verdict == ScreenVerdict.SUSPICIOUS:
+            risk_verdict = "suspicious"
+
+    state, _ = _session_manager.record_turn(session_id, [], risk_verdict, 0.0)
+    rationale = (f"Ingress refused request: unsupported (non-text) input ({', '.join(reasons)}); the runtime is "
+                 f"text-only (OI-079). "
+                 + ("Only the Stage 0 screen was applied, to the text, so an attack cannot hide behind an "
+                    "attachment. " if screened else "No stage ran on the request. ")
+                 + ("Session risk not charged: a scope refusal is not a security signal."
+                    if risk_verdict == "clean" else
+                    f"Session risk charged for the text's own Stage 0 verdict ({risk_verdict})."))
+    log_decision(session_id, RoutingDecision(
+        selected_tier=MethodTier.CACHE, selected_model=None, rationale=rationale,
+        cost_estimate=TierCostEstimate(tier=MethodTier.CACHE), policy_flags=[],
+    ), stage0_screen_result=stage0_result, session_state_snapshot=state.snapshot(), execution="blocked")
+    return PipelineResult(response=UNSUPPORTED_MODALITY_MESSAGE, tier_used="blocked_ingress",
+                          blocked=True, block_reason=UNSUPPORTED_MODALITY)
+
+
+def process_ingress(payload: Mapping[str, Any], session_id: str | None = None) -> PipelineResult:
+    """The text-only boundary in front of process_request (OI-079). Plain-text payloads go straight
+    to process_request unchanged; anything else is refused here. No FastAPI dependency, so it can be
+    tested directly. `session_id` must already be a VERIFIED id (see session/identity.py)."""
+    verdict = check_modality(payload)
+    if verdict.supported:
+        return process_request(payload["text"], session_id, payload.get("confirmation_token"))
+    return _refuse_unsupported_modality(payload, verdict.reasons, session_id)
+
+
 # --- FastAPI glue (thin wrapper around process_request) ---
 try:
-    from fastapi import FastAPI
+    import pydantic
+    from fastapi import FastAPI, HTTPException, Request
+    from fastapi.exception_handlers import request_validation_exception_handler
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.responses import JSONResponse
     from pydantic import BaseModel
 
     app = FastAPI(title="Constitutional Runtime")
 
+    class SessionOut(BaseModel):
+        session_token: str
+        expires_at: int          # epoch seconds
+
+    _PYDANTIC_V2 = int(pydantic.VERSION.split(".")[0]) >= 2
+
     class RequestIn(BaseModel):
-        text: str
-        session_id: str | None = None
+        # `text` is typed Any on purpose: a non-string value (a list of content parts, an object)
+        # is non-text input and gets the structured unsupported_modality refusal (OI-079) rather
+        # than a bare validation error. Unknown fields are kept so populated image/audio/file
+        # fields can be recognised and refused instead of being silently dropped.
+        text: Any = None
+        modality: Any = None
+        # Issued by POST /v1/session. Clients cannot choose a session id: an unsigned, altered,
+        # foreign or expired token is rejected with 401 before anything else runs.
+        session_token: str | None = None
         confirmation_token: str | None = None
+
+        if _PYDANTIC_V2:
+            model_config = {"extra": "allow"}
+        else:
+            class Config:
+                extra = "allow"
 
     class ResponseOut(BaseModel):
         response: str
@@ -539,9 +648,38 @@ try:
         feedforward: str | None = None
         validation_status: str | None = None
 
+    _ISSUE_REFUSAL_STATUS = {"rate_limited": 429, "issuer_busy": 503, "issuance_error": 503}
+
+    @app.exception_handler(RequestValidationError)
+    async def _non_json_body_handler(request: Request, exc: RequestValidationError):
+        # A body that is not JSON (multipart upload, raw image/audio bytes, text/plain) cannot carry
+        # a session token or text, so it is refused here without processing anything (OI-079).
+        # Genuine JSON problems keep FastAPI's normal 422.
+        ctype = request.headers.get("content-type", "").split(";")[0].strip().lower()
+        if request.url.path == "/v1/respond" and ctype and ctype != "application/json":
+            return JSONResponse(status_code=415, content={"detail": {"code": "unsupported_content_type"}})
+        return await request_validation_exception_handler(request, exc)
+
+    @app.post("/v1/session", response_model=SessionOut)
+    def create_session(request: Request) -> SessionOut:
+        # Peer address only: proxy headers are deliberately NOT trusted (they are client-controlled).
+        peer = request.client.host if request.client else "unknown"
+        issued = _identity.issue(_identity.client_key(peer))
+        if not issued.ok:
+            raise HTTPException(status_code=_ISSUE_REFUSAL_STATUS.get(issued.reason, 503),
+                                detail={"code": issued.reason})
+        return SessionOut(session_token=issued.session.token, expires_at=issued.session.expires_at)
+
     @app.post("/v1/respond", response_model=ResponseOut)
     def respond(req: RequestIn) -> ResponseOut:
-        result = process_request(req.text, req.session_id, req.confirmation_token)
+        verified = _identity.verify(req.session_token)
+        if not verified.ok:
+            # Nothing is processed, screened or recorded for an unauthenticated caller; no detail is given.
+            raise HTTPException(status_code=401,
+                                detail={"code": "session_expired" if verified.reason == "expired"
+                                        else "session_invalid"})
+        payload = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+        result = process_ingress(payload, verified.session_id)
         return ResponseOut(**result.__dict__)
 
     @app.get("/health")

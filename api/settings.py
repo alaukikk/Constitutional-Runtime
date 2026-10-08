@@ -13,6 +13,11 @@ on every instantiation.
 Bad config (e.g. a non-integer APP_PORT) fails loudly at construction
 time with a clear message, rather than crashing confusingly later or
 silently falling back to a default.
+
+Sprint 6 (OI-013): SESSION_SECRET signs server-issued session tokens. If it is
+empty the app generates a random per-process secret (tokens then stop working on
+restart, and so does the in-memory session state, OI-020/OI-041). Set it in any
+real deployment. The three SESSION_* limits are PLACEHOLDERS (OI-078).
 """
 from __future__ import annotations
 import os
@@ -46,6 +51,12 @@ class Settings:
     database_url: str = field(default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///./dev.db"))
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
     checkpoint_secret: str = field(default_factory=lambda: os.getenv("CHECKPOINT_SECRET", ""))
+    # Server-issued session identity (OI-013). Limits are placeholders (OI-078).
+    session_secret: str = field(default_factory=lambda: os.getenv("SESSION_SECRET", ""))
+    session_ttl_seconds: int = field(default_factory=lambda: _get_int_env("SESSION_TTL_SECONDS", "604800"))
+    session_issue_limit: int = field(default_factory=lambda: _get_int_env("SESSION_ISSUE_LIMIT", "10"))
+    session_issue_window_seconds: int = field(
+        default_factory=lambda: _get_int_env("SESSION_ISSUE_WINDOW_SECONDS", "3600"))
 
 
 settings = Settings()
