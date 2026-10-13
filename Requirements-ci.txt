@@ -1,0 +1,14 @@
+# Dependencies the CI job installs: only what the code and the tests import.
+# requirements.txt stays the full/runtime list; do not install it in CI (it pulls in
+# sentence-transformers, psycopg2-binary and others that nothing imports).
+#
+# Unpinned for now. To make CI reproducible, pin each line to the version the suite is
+# run with locally (python -m pip list).
+pytest
+pyyaml
+pydantic
+fastapi
+httpx
+scikit-learn
+redis
+python-dotenv
