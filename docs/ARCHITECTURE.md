@@ -116,8 +116,8 @@ gate, because the gate never looks at session history to begin with.
 6. **Security boundary:** N/A (user-facing, not a security gate).
 7. **Failure behavior:** Fail open for low-stakes categories (proceed without explicit confirmation); fail closed (require confirmation) for anything flagged `REQUIRE_HUMAN` upstream.
 8. **Cost accounting:** N/A — this stage doesn't consume model resources.
-9. **Audit requirements:** Whether feedforward was shown, and whether the user proceeded/modified/cancelled, is logged.
-10. **Escalation conditions:** User cancels → no execution, logged as a user-initiated stop, not a failure.
+9. **Audit requirements:** Log whether the server returned a feedforward message and the server-observable confirmation state. Do not claim the user saw/rendered the message or infer whether they proceeded, modified, or cancelled in the UI.
+10. **Escalation conditions:** A cancellation may be logged as a user-initiated stop only if the server receives an explicit, trustworthy cancellation event. The current API cannot observe UI cancellation or modification, so neither is inferred from a missing confirmation or an abandoned request.
 11. **Research gap addressed:** The metacognition paper's "feedforward" design as the actual mitigation for processing-fluency bias — intervention must happen *before* generation, since fluent output is what erodes scrutiny *after* it exists. Directly ties to the critical-thinking paper's finding that confidence in AI (not accuracy) predicts reduced scrutiny.
 12. **How we will test it:** User study replicating the critical-thinking paper's method at small scale — compare self-reported scrutiny/calibration with vs. without this stage.
 
