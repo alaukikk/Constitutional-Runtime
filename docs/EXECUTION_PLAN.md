@@ -76,7 +76,7 @@ The Sprint 3 implementation is committed to the GitHub `main` repository, includ
 
 ### Deliberate Sprint 3 limitations carried forward
 
-- Session IDs are still caller-supplied/anonymous at this layer. A caller that rotates IDs can bypass accumulated session context; server-issued or signed IDs require an upstream authentication/session boundary and remain open as `OI-013`. The same identity/session boundary also applies to the human-confirmation token.
+- **Superseded:** Session IDs were caller-supplied/anonymous at this layer, allowing callers to rotate IDs and bypass accumulated session context. Sprint 6 server-issued session identity supersedes this earlier implementation note; the residual fresh-session reset path remains tracked under OI-078. The human-confirmation token's identity limitation remains tracked under OI-040.
 - The live Stage 2 gate records the current turn with `turn_cost=0.0` because the final execution cost is not known before the gate. This means cumulative-cost thresholding is intentionally approximate until a pre-execution estimate is threaded into the gate; the actual estimator output remains available to the execution/audit path. Plan estimates now exist after Stage 2, so threading a pre-execution cost into the session gate is feasible (`OI-036`).
 - Session thresholds remain placeholders and require calibration against the golden set and empirical cost data (`OI-018`).
 - Energy anchors/model-catalog values are not yet fully empirical; assumptions and provenance remain explicit in the estimator/model registry (`OI-005`, `OI-017`).
