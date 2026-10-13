@@ -12,11 +12,12 @@
 #
 # Scope [JUDGMENT]: the runtime constitution and its failure semantics, the
 # policy package (engine, schemas, governance log), the frozen architecture, the
-# development constitution, and this file.
+# development constitution, the CI workflows (which gate every merge), and this file.
 
 /config/constitution.yaml   @alaukikk
 /config/failure_modes.yaml  @alaukikk
 /policy/                    @alaukikk
 /docs/ARCHITECTURE.md       @alaukikk
 /docs/CONSTITUTION.md       @alaukikk
+/.github/workflows/         @alaukikk
 /.github/CODEOWNERS         @alaukikk
