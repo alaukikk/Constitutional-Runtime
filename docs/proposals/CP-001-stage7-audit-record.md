@@ -1,6 +1,6 @@
 # CP-001: Stage 7 audit record and request evidence
 
-**Status:** Revised draft for owner decision. Nothing is implemented by this proposal; `ARCHITECTURE.md` remains frozen and unchanged.  
+**Status:** ACCEPTED by project owner on 2026-10-13. Documentation amendment is proposed in a pull request; implementation has not started.  
 **Author:** ChatGPT (independent architecture/research review)  
 **Implementation reviewer:** Claude  
 **Decider:** Project owner under Rule 4  
@@ -8,7 +8,7 @@
 
 ## Recommendation
 
-**Accept the direction, subject to owner approval of the schema change described below.** Keep the permanent audit log free of request content; use a per-record-salted HMAC for text-request matching; retain the structured decision evidence required to explain routing and outcomes; do not build a separate diagnostics store or forensic evidence vault now.
+**Accepted by the project owner on 2026-10-13.** Keep the permanent audit log free of request content; use a per-record-salted HMAC for text-request matching; retain the structured decision evidence required to explain routing and outcomes; do not build a separate diagnostics store or forensic evidence vault now.
 
 This is a deliberate balance, not a claim that privacy-preserving logs can reconstruct every incident. A prompt-injection bypass that was never flagged cannot be reconstructed from a content-free record. That residual limitation must remain explicit.
 
@@ -66,7 +66,7 @@ No separate short-retention diagnostics store is proposed for the MVP. Adding an
 
 ### A.4 Schema semantics to approve
 
-The new schema is version 2. Existing lines without `schema_version` are treated as version 1 and remain untouched. New records must include all v2 fields, using documented null/empty values when a stage did not run.
+The new schema is version 2. Existing lines without `schema_version` are treated as version 1 and remain untouched. New records must include all v2 fields, using documented null/empty values when a stage did not run. Owner decisions recorded on 2026-10-13 are pinned in Part C below.
 
 | Field | V2 meaning |
 |---|---|
@@ -77,12 +77,12 @@ The new schema is version 2. Existing lines without `schema_version` are treated
 | `policy_flags` | Top-level copy of Stage 1 flags to match the target schema. It must equal the nested legacy value while that value remains during migration. |
 | `session_state_snapshot` | Existing session snapshot. |
 | `alternatives_considered` | The existing Stage 3 plan steps: tier, attempt/skip status, reason, and estimate. Reason fields must remain identifiers/controlled explanations, not copies of input. |
-| `selected_tier`, `estimated_cost`, `rationale` | Top-level Stage 3 values. Preserve the existing nested `decision` object temporarily for compatibility; tests must assert the duplicated values agree. |
+| `selected_tier`, `estimated_cost`, `rationale` | Top-level Stage 3 values. If no tier ran (for example, a blocked request or pending confirmation), `selected_tier` and `estimated_cost` are `null`; do not use placeholder tier/cost values. Preserve the existing nested `decision` object unchanged temporarily for compatibility; tests must assert duplicated values agree when top-level values are present. |
 | `actual_cost` | `latency_ms` is measured Stage 5 wall-clock execution time across attempted tiers; null if Stage 5 did not run. `energy_wh` and `dollars` are null until genuinely measured. Null means unavailable/not measured, never zero. |
 | `feedforward_returned` | True only when the server includes a feedforward message in its API response. Do not claim that the user actually saw/rendered it; the server cannot observe that. This replaces the misleading target name `feedforward_shown`. |
 | `user_confirmation_state` | `not_required`, `pending`, or `confirmed`. A valid confirmation token consumed is `confirmed`; a response awaiting confirmation is `pending`. Cancellation/modification is not claimed because the current server cannot observe those client actions. This replaces an ambiguous boolean/tri-state `user_confirmed`. |
 | `validation_result` | Summary enum: `passed`, `failed`, `validator_error_failed_open`, `validator_error_failed_closed`, or `not_run`. Keep `validation_trace` for detail. A normal failed check is not “failed open”; that term applies only when the validator itself errors and policy permits release. |
-| `escalations` | Actual tier transitions/repair escalations observed by the pipeline, not inferred from the planned attempt order alone. |
+| `escalations` | Actual transitions observed by the pipeline, including both normal ladder fall-through when a tier returns no answer and repair escalation. Each event has a `kind` distinguishing these cases; do not infer events from planned order alone. |
 | `human_checkpoint_triggered`, `checkpoint_kinds` | Whether a checkpoint was required and why (for example `human_required` or `cost_gate`). This does not claim a human reviewed the output. |
 | `final_outcome`, `outcome_reason` | `final_outcome` is the stable state enum `released`, `blocked`, `pending_confirmation`, or `withheld`. `outcome_reason` carries the existing controlled block/withhold reason code, keeping the enum from duplicating every failure reason. |
 | Existing execution fields | Retain `timestamp`, `session_id`, `execution`, `validation_trace`, and `withheld_route_estimate`. Keep the nested `decision` snapshot temporarily as noted above. |
@@ -135,5 +135,17 @@ Do not build Level 3 now. A separate encrypted, access-controlled, time-limited 
 6. Review application exception logging separately so exception messages cannot reintroduce user content into operational logs.
 7. Do not claim the audit schema change is implemented until code, tests, and the CI workflow confirm it.
 
-**Decision:** Pending explicit owner decision under Rule 4.  
-**Recommendation:** Accept this bounded schema change; keep Level 3 deferred.
+## Part C — Recorded owner decisions (2026-10-13)
+
+**Formal decision: ACCEPT.** The project owner accepts this bounded schema change under Rule 4. The accepted design keeps request content out of the permanent audit log, uses per-record-salted HMAC evidence, defers the diagnostics store and Level 3 forensic vault, and explicitly preserves the unflagged-bypass reconstruction limitation.
+
+The owner also accepts these implementation semantics and defaults:
+
+1. **No-execution records:** top-level `selected_tier` and `estimated_cost` are `null` when no tier ran (including blocked and pending-confirmation records). Keep the legacy nested `decision` object unchanged for compatibility; do not repeat the OI-058 placeholder semantics in the new top-level fields.
+2. **Escalation events:** include both normal tier-ladder fall-through and repair escalation. Each event must carry a `kind` that distinguishes the two; record actual observed transitions, not merely planned order.
+3. **Normalization version:** approve adding a single explicit normalization-version constant in `guardrails/injection_screen.py`, with a golden test that fails if the normalization behavior changes without a corresponding version decision. This is authorization for that implementation change, not a claim it has been made.
+4. **HMAC key handling:** use `AUDIT_HMAC_KEY` and `AUDIT_HMAC_KEY_ID`. A missing key or secure salt fails loudly on each audit write, not at import time. Tests inject the key through a fixture. CI may use a throwaway key configured in `tests.yml`; because the workflow is CODEOWNERS-protected, its change must be reviewed through the required PR process. Local audit-writing runs must set the environment variables.
+5. **Latency detail:** include per-attempt latency in `validation_trace` events. The top-level `actual_cost.latency_ms` remains measured Stage 5 wall-clock execution time across attempted tiers, and is null if Stage 5 did not run. Energy and dollars remain null until genuinely measured, never zero as a placeholder.
+6. **Feedforward and confirmation semantics:** explicitly accept the renames `feedforward_shown` → `feedforward_returned` and `user_confirmed` → `user_confirmation_state`. The first records that the server included the feedforward message in its API response, not that the user saw it. The second records only server-observable states (`not_required`, `pending`, `confirmed`); Stage 4's request to log whether the user proceeded, modified, or cancelled is narrowed because the server cannot observe UI cancellation or modification. No such unobservable action will be inferred or logged as fact.
+
+These decisions approve the documented target schema and implementation direction; they do not assert that implementation, tests, or CI are complete. Implementation may begin after the architecture amendment is merged through the protected pull-request process.
