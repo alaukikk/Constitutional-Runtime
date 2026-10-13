@@ -178,30 +178,54 @@ gate, because the gate never looks at session history to begin with.
 11. **Research gap addressed:** NIST's automation-bias category; the critical-thinking paper's "stewardship" framing (accountability stays with the human even when production is delegated).
 12. **How we will test it:** Confirm every audit record contains the full schema below; confirm human checkpoints actually block completion until confirmed for flagged categories.
 
-**Audit record schema (target — Sprint 1 currently logs a subset):**
+**Audit record schema (target v2 — accepted by CP-001 on 2026-10-13; implementation remains pending):**
 ```json
 {
+  "schema_version": 2,
   "timestamp": "...",
   "session_id": "...",
-  "request": "...",
+  "request_evidence": {
+    "digest_alg": "hmac-sha256",
+    "digest": "<hex HMAC or null>",
+    "salt": "<per-record random salt or null>",
+    "key_id": "<configured key ID or null>",
+    "normalization_version": "<Stage 0 version or null>",
+    "normalized_char_len": "<Unicode code-point count or null>",
+    "raw_text_stored": false,
+    "status": "available | not_text_input | normalization_unavailable"
+  },
   "stage0_screen_result": "...",
-  "policy_flags": [...],
-  "session_state_snapshot": "...",
-  "alternatives_considered": [...],
-  "selected_tier": "...",
-  "estimated_cost": {"energy_wh": "...", "dollars": "...", "latency_ms": "..."},
-  "actual_cost": {"energy_wh": "...", "dollars": "...", "latency_ms": "..."},
+  "stage0_confidence": null,
+  "stage0_matched_patterns": [],
+  "policy_flags": [],
+  "session_state_snapshot": {},
+  "alternatives_considered": [],
+  "selected_tier": null,
+  "estimated_cost": null,
   "rationale": "...",
-  "feedforward_shown": true,
-  "user_confirmed": true,
-  "validation_result": "...",
-  "escalations": [...],
+  "actual_cost": {
+    "latency_ms": null,
+    "energy_wh": null,
+    "dollars": null
+  },
+  "feedforward_returned": false,
+  "user_confirmation_state": "not_required | pending | confirmed",
+  "validation_result": "passed | failed | validator_error_failed_open | validator_error_failed_closed | not_run",
+  "validation_trace": [],
+  "escalations": [
+    {"kind": "ladder_fallthrough | repair", "from_tier": "...", "to_tier": "...", "reason": "..."}
+  ],
   "human_checkpoint_triggered": false,
-  "final_outcome": "..."
+  "checkpoint_kinds": [],
+  "final_outcome": "released | blocked | pending_confirmation | withheld",
+  "outcome_reason": "...",
+  "execution": "...",
+  "withheld_route_estimate": null,
+  "decision": {}
 }
 ```
 
-**Owner:** Audit/logging track. **Sprint 1 status:** basic version implemented (`audit/audit_log.py`), logging a subset of this schema — expanding to the full schema is explicit Sprint 2+ scope, not a change to this spec.
+**Owner:** Audit/logging track. **Implementation status:** schema v2 is accepted as a target; rollout remains pending. Existing JSONL records without `schema_version` remain v1 and are not rewritten. New records use the complete v2 shape. If no tier ran, top-level `selected_tier` and `estimated_cost` are `null`; the nested legacy `decision` is retained unchanged during migration. `actual_cost.latency_ms` is measured Stage 5 wall-clock time and is null when Stage 5 did not run; energy and dollars are null until genuinely measured. Per-attempt latency belongs in `validation_trace` events. See `docs/proposals/CP-001-stage7-audit-record.md` for request-evidence, escalation-kind, key-handling, and migration requirements.
 
 ---
 
