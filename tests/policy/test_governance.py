@@ -1,4 +1,5 @@
 
+
 """OI-067 governance: integrity log, CODEOWNERS copies.
 
 The synthetic-root tests exercise the log mechanics in isolation. The two
