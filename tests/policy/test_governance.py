@@ -330,7 +330,7 @@ def test_every_governed_file_is_covered_by_a_code_owner_rule(rel):
 
 
 @pytest.mark.parametrize("rel", ["policy/governance/change_log.py", "policy/governance/change_log.jsonl",
-                                 "docs/ARCHITECTURE.md", "docs/CONSTITUTION.md", ".github/CODEOWNERS"])
+                                 "docs/ARCHITECTURE.md", "docs/CONSTITUTION.md", ".github/CODEOWNERS", ".github/workflows/tests.yml"])
 def test_governance_machinery_and_frozen_docs_are_covered(rel):
     assert any(_covers(p, rel) for p, _ in _rules(GITHUB_COPY)), f"{rel} has no code-owner rule"
 
