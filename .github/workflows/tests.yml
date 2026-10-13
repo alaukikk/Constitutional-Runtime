@@ -1,0 +1,59 @@
+# CI for the Constitutional Runtime (Sprint 6).
+#
+# What this gates: every push to main and every pull request runs the full test suite,
+# including the governance integrity test (constitutional files vs policy/governance/
+# change_log.jsonl) and the CODEOWNERS-copies-identical test. It only becomes a MERGE gate
+# when the "pytest (Python 3.11)" check is marked required in the branch ruleset for main
+# (a repository setting, not something this file can enforce).
+#
+# Scope notes:
+#  * Python 3.11 matches the owner's local environment (the version the suite has been run on).
+#  * Dependencies come from requirements-ci.txt (only what the code and tests import), not the
+#    full requirements.txt, which carries heavy packages nothing imports.
+#  * Protected by CODEOWNERS (/.github/workflows/), so changing this file needs owner review.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: pytest (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-ci.txt
+
+      # Several test modules use pytest.importorskip, which SKIPS silently when a package is
+      # missing. Importing the packages here makes a missing dependency fail the job instead of
+      # quietly turning real tests into skips.
+      - name: Fail loudly if a test dependency is missing
+        run: python -c "import fastapi, httpx, pydantic, sklearn, yaml; print('test dependencies import cleanly')"
+
+      - name: Governance integrity (constitutional files vs the governance log)
+        run: python -m policy.governance.change_log check
+
+      - name: Run the test suite
+        run: python -m pytest -ra
