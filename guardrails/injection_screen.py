@@ -1,4 +1,5 @@
 
+
 """
 Stage 0 — Minimal Trusted Ingress
 Stateless, per-message jailbreak/injection screen. Runs before anything else,
@@ -71,6 +72,15 @@ _SUSPICIOUS_PATTERNS: dict[str, str] = {
 }
 
 _MAX_LEN = 20_000
+
+# Version of the normalization applied by _normalize() (NFKC, then drop every non-printable
+# character except newline, then strip). The audit log records it next to a request's salted
+# HMAC (audit/request_evidence.py, CP-001), because a digest can only be matched against a
+# reporter-supplied request if the SAME normalization is applied to it. If _normalize() ever
+# changes behavior, bump this string in the same change; tests/guardrails/
+# test_normalization_golden.py fails until the version and its golden outputs are updated
+# together, so the change cannot happen unnoticed. Old records keep their old version.
+NORMALIZATION_VERSION = "1"
 
 # Marker pattern for the unsupported-script refusal (see module docstring).
 UNSUPPORTED_LANGUAGE = "unsupported_language"
