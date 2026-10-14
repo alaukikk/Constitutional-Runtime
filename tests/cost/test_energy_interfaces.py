@@ -1,4 +1,5 @@
 
+
 import json
 import math
 import tempfile
@@ -7,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from audit import audit_log
+from audit.request_evidence import NOT_TEXT_INPUT, build_request_evidence
 from cost.model_registry import MODEL_CATALOG, EnergyAnchor, ModelInfo
 from policy.schemas import MethodTier, RoutingDecision, TierCostEstimate
 
@@ -27,7 +29,10 @@ class TestSchemaEnergy(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "log.jsonl"
             with mock.patch.object(audit_log, "LOG_PATH", path):
-                audit_log.log_decision("s1", dec)
+                audit_log.log_decision(
+                    "s1", dec, execution="executed", outcome_reason=None, actual_latency_ms=1.0,
+                    request_evidence=build_request_evidence(
+                        None, normalization_version=None, status=NOT_TEXT_INPUT))
             entry = json.loads(path.read_text().strip())
         self.assertEqual(entry["decision"]["cost_estimate"]["est_energy_wh"], 1.5)
 
