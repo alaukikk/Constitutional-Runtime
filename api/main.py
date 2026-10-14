@@ -1,4 +1,5 @@
 
+
 """
 api/main.py — Stage 0 -> Stage 1 -> Stage 2 (session) -> Stage 3/5 (tier
 ladder) -> Stage 6 (validator, one bounded repair) -> Stage 7 (audit).
@@ -92,9 +93,23 @@ otherwise referenced by name/shape here beyond the BLOCKED comparison this
 file already made, so this normalizer works whether it's a str Enum, a
 plain Enum, or a bare string -- it degrades to a lowercased passthrough
 for anything unrecognized rather than crashing.
+
+--- Sprint 6 addition (Stage 7 audit schema v2, CP-001) ---
+
+Every terminal path writes ONE schema-v2 audit record (audit/audit_log.py) that never contains
+request text: a text request is represented by a per-record-salted HMAC (audit/request_evidence.py).
+This module supplies the observed facts the record needs: which Stage 5 attempts actually ran and
+how long each took (time.perf_counter around each tier call), the ladder fall-through and repair
+transitions that really happened (not the planned order), whether a feedforward message went out in
+the response, the server-observable confirmation state, and why a checkpoint was required.
+Latency is measured execution time only (every attempted tier, repair included; validation time is
+not counted). Energy and dollars are NOT recorded as actuals: they are null until measured.
+The HMAC configuration is checked up front (ensure_audit_ready) so a misconfigured deployment fails
+before any work is done or any single-use confirmation token is consumed.
 """
 from __future__ import annotations
 import logging
+import time
 from dataclasses import asdict, dataclass, replace
 from collections.abc import Mapping
 from typing import Any, Optional
@@ -112,7 +127,8 @@ from escalation.repair_router import (
     WITHHELD_MESSAGE_VALIDATOR_ERROR, decide_repair,
 )
 from guardrails.injection_screen import (
-    UNSUPPORTED_LANGUAGE, ScreenVerdict, is_language_refusal_only, screen_request,
+    NORMALIZATION_VERSION, UNSUPPORTED_LANGUAGE, ScreenVerdict, is_language_refusal_only,
+    screen_request,
 )
 from policy.engine import get_policy_engine
 from policy.schemas import PolicyAction, MethodTier, RoutingDecision, TierCostEstimate
@@ -124,6 +140,9 @@ from tiers.llm_call import call_llm
 from triage.decision import plan_request
 from triage.modality_router import UNSUPPORTED_MODALITY, check_modality
 from audit.audit_log import log_decision
+from audit.request_evidence import (
+    NORMALIZATION_UNAVAILABLE, NOT_TEXT_INPUT, build_request_evidence, ensure_audit_ready,
+)
 from session.session_state import SessionManager, ANONYMOUS_SESSION, ACTION_ORDER
 from validation.validator import ValidationResult, validate_output
 
@@ -257,7 +276,37 @@ def _new_trace(first_tier: MethodTier, plan) -> dict:
     }
 
 
-def _record_validation(trace: dict, tier: MethodTier, v: ValidationResult) -> None:
+def _ms(started: float) -> float:
+    """Milliseconds elapsed since a time.perf_counter() reading."""
+    return (time.perf_counter() - started) * 1000.0
+
+
+# Stage 0 matches that leave no text a later reporter could be matched against: nothing to
+# digest (empty), a truncated text (oversized: Stage 0 keeps only the first characters, so a
+# digest could never match the full request) or a Stage 0 failure.
+_NO_DIGEST_STAGE0_PATTERNS = {"empty_input", "oversized_input", "screen_internal_error"}
+
+
+def _evidence_for_screen(screen_result) -> dict:
+    """The audit `request_evidence` for a request Stage 0 screened. Digests the normalized text
+    only when a full, usable normalized text exists; the text itself is never stored."""
+    if set(screen_result.matched_patterns) & _NO_DIGEST_STAGE0_PATTERNS:
+        return build_request_evidence(None, normalization_version=None,
+                                      status=NORMALIZATION_UNAVAILABLE)
+    return build_request_evidence(screen_result.normalized_text,
+                                  normalization_version=NORMALIZATION_VERSION)
+
+
+def _alternatives(plan) -> list[dict]:
+    """Stage 3 plan steps for the audit record: tier, planned attempt/skip, the controlled reason,
+    and the estimate. This is the PLAN; what actually ran is in `escalations` and the trace."""
+    return [{"tier": s.tier.value, "attempt": s.attempt, "reason": s.reason,
+             "model_name": s.model_name, "estimate": asdict(s.estimate.tier_estimate)}
+            for s in plan.steps]
+
+
+def _record_validation(trace: dict, tier: MethodTier, v: ValidationResult,
+                       attempt_latency_ms: float) -> None:
     failed = [c.name for c in v.checks if not c.passed]
     if v.validator_errored:
         trace["validator_error"] = True
@@ -272,6 +321,8 @@ def _record_validation(trace: dict, tier: MethodTier, v: ValidationResult) -> No
         "event": "validation", "tier": tier.value, "passed": v.passed,
         "validator_errored": v.validator_errored, "failed_open": v.failed_open,
         "failed_checks": failed, "reason": v.reason,
+        # Measured execution time of the attempt whose answer was validated (not validation time).
+        "attempt_latency_ms": attempt_latency_ms,
     })
 
 
@@ -287,10 +338,13 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
     """The actual Stage 0 -> 1 -> 2 -> 3/5 -> 6 -> 7 pipeline. No FastAPI/pydantic
     dependency, so this can be tested directly without a running server."""
     session_id = session_id or ANONYMOUS_SESSION
+    ensure_audit_ready()    # fail loud BEFORE any work, state change or single-use token use
 
     # --- Stage 0 ---
     screen_result = screen_request(text)
     verdict_str = _screen_verdict_str(screen_result.verdict)
+    stage0_patterns = list(screen_result.matched_patterns)
+    evidence = _evidence_for_screen(screen_result)   # content-free; reused by every record below
 
     if screen_result.verdict == ScreenVerdict.BLOCKED:
         # OI-077: an unsupported-script refusal is a scope decision, not a security signal,
@@ -314,7 +368,10 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
             rationale=rationale,
             cost_estimate=TierCostEstimate(tier=MethodTier.CACHE),
             policy_flags=[],
-        ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot(), execution="blocked")
+        ), execution="blocked", request_evidence=evidence,
+            outcome_reason=UNSUPPORTED_LANGUAGE if language_refusal else "stage0_screen",
+            stage0_screen_result=verdict_str, stage0_confidence=screen_result.confidence,
+            stage0_matched_patterns=stage0_patterns, session_state_snapshot=state.snapshot())
         if language_refusal:
             return PipelineResult(response=UNSUPPORTED_LANGUAGE_MESSAGE, tier_used="blocked_stage0",
                                   blocked=True, block_reason=UNSUPPORTED_LANGUAGE)
@@ -357,7 +414,11 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
         log_decision(session_id, RoutingDecision(
             selected_tier=MethodTier.CACHE, selected_model=None, rationale=rationale,
             cost_estimate=TierCostEstimate(tier=MethodTier.CACHE), policy_flags=flags,
-        ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot(), execution="blocked")
+        ), execution="blocked", request_evidence=evidence,
+            outcome_reason="session_block" if session_escalated else "policy_gate",
+            stage0_screen_result=verdict_str, stage0_confidence=screen_result.confidence,
+            stage0_matched_patterns=stage0_patterns, session_state_snapshot=state.snapshot(),
+            user_confirmation_state="confirmed" if confirmed else "not_required")
         return PipelineResult(response="This request violates policy and cannot be processed.",
                                tier_used="blocked_stage1",
                                blocked=True,
@@ -370,6 +431,12 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
     gate = evaluate_gate(plan)
     human_needed = combined == PolicyAction.REQUIRE_HUMAN and not confirmed
     cost_needed = gate.required and not ack_cost
+    # Why a checkpoint was required for this request (whether it is still pending or a valid
+    # token already satisfied it). Says nothing about a human having reviewed anything.
+    checkpoint_kinds = ([] if combined != PolicyAction.REQUIRE_HUMAN else ["human_required"]) \
+        + (["cost_gate"] if gate.required else [])
+    alternatives = _alternatives(plan)
+    user_confirmation = "confirmed" if confirmed else "not_required"
     if human_needed or cost_needed:
         if human_needed and most_severe == PolicyAction.REQUIRE_HUMAN:
             reasons = [f.reason for f in flags if f.action == PolicyAction.REQUIRE_HUMAN]
@@ -393,19 +460,24 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
                       else " Feedforward unavailable (render error).")
         token = _checkpoint.issue(session_id, normalized,
                                   rule_ids + ([GATE_COST_ID] if gate.required else []))
-        log_decision(session_id, RoutingDecision(
-            selected_tier=MethodTier.CACHE, selected_model=None, rationale=rationale,
-            cost_estimate=TierCostEstimate(tier=MethodTier.CACHE), policy_flags=flags,
-        ), stage0_screen_result=verdict_str, session_state_snapshot=state.snapshot(), 
-                     execution="withheld_pending_confirmation", 
-                     withheld_route_estimate=safe_worst_case_estimate(plan))
-        message = confirmation_message(reasons, _checkpoint.ttl_seconds)
-        if preview:
-            message += " " + preview
         if human_needed:
             block_reason = "session_require_human" if session_escalated else "human_confirmation_required"
         else:
             block_reason = "cost_confirmation_required"
+        log_decision(session_id, RoutingDecision(
+            selected_tier=MethodTier.CACHE, selected_model=None, rationale=rationale,
+            cost_estimate=TierCostEstimate(tier=MethodTier.CACHE), policy_flags=flags,
+        ), execution="withheld_pending_confirmation", request_evidence=evidence,
+            outcome_reason=block_reason,
+            stage0_screen_result=verdict_str, stage0_confidence=screen_result.confidence,
+            stage0_matched_patterns=stage0_patterns, session_state_snapshot=state.snapshot(),
+            alternatives_considered=alternatives,
+            feedforward_returned=bool(preview), user_confirmation_state="pending",
+            checkpoint_kinds=checkpoint_kinds,
+            withheld_route_estimate=safe_worst_case_estimate(plan))
+        message = confirmation_message(reasons, _checkpoint.ttl_seconds)
+        if preview:
+            message += " " + preview
         return PipelineResult(
             response=message,
             tier_used="blocked_stage1_human_required" if human_needed else "blocked_stage4_cost_gate",
@@ -416,16 +488,29 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
     tier_used = None
     result_text = None
     exec_error = False
-    for tier in plan.attempt_order:
+    exec_ms = 0.0                       # measured execution time across every attempted tier
+    attempt_ms = 0.0                    # ... and for the most recent attempt alone
+    escalations: list[dict] = []        # transitions actually observed (not the planned order)
+    order = plan.attempt_order
+    for i, tier in enumerate(order):
         tier_used = tier
+        started = time.perf_counter()
         try:
             result_text = _run_tier(tier, normalized, plan.step_for(tier).model_name)
         except Exception:
+            attempt_ms = _ms(started)
+            exec_ms += attempt_ms
             log.exception("Stage 5 execution error on tier %s", tier.value)
             exec_error = True
             break
+        attempt_ms = _ms(started)
+        exec_ms += attempt_ms
         if result_text is not None:
             break
+        if i + 1 < len(order):          # this rung had no answer: the ladder moves up
+            escalations.append({"kind": "ladder_fallthrough", "from_tier": tier.value,
+                                "to_tier": order[i + 1].value, "reason": "tier_returned_no_answer",
+                                "attempt_latency_ms": attempt_ms})
     if result_text is None and not exec_error:
         raise RuntimeError("routing plan had no terminal tier")
 
@@ -440,10 +525,11 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
 
     if exec_error:
         trace["execution_error"] = True
-        trace["events"].append({"event": "execution_error", "tier": tier_used.value})
+        trace["events"].append({"event": "execution_error", "tier": tier_used.value,
+                                "attempt_latency_ms": attempt_ms})
     else:
         latest_validation = validate_output(normalized, result_text, tier_used, flags)
-        _record_validation(trace, tier_used, latest_validation)
+        _record_validation(trace, tier_used, latest_validation, attempt_ms)
         released = latest_validation.passed
         final_validation = latest_validation
 
@@ -460,22 +546,28 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
             trace["repair_attempted"] = True
             trace["repair_target_tier"] = repair.target_tier.value
             repaired_text = None
+            started = time.perf_counter()
             try:
                 repaired_text = _run_tier(repair.target_tier, normalized, repair.target_model)
             except Exception:
                 log.exception("Stage 5 execution error on repair tier %s", repair.target_tier.value)
+            repair_ms = _ms(started)
+            exec_ms += repair_ms
+            escalations.append({"kind": "repair", "from_tier": tier_used.value,
+                                "to_tier": repair.target_tier.value, "reason": kind.value,
+                                "attempt_latency_ms": repair_ms})
             if repaired_text is None:
                 latest_exec_error = True
                 latest_validation = None
                 trace["execution_error"] = True
                 trace["events"].append({"event": "execution_error", "tier": repair.target_tier.value,
-                                        "during": "repair"})
+                                        "during": "repair", "attempt_latency_ms": repair_ms})
                 bound = decide_repair(plan, repair.target_tier, FailureKind.EXECUTION_ERROR, normalized,
                                       escalations_so_far=1)
             else:
                 latest_exec_error = False
                 latest_validation = validate_output(normalized, repaired_text, repair.target_tier, flags)
-                _record_validation(trace, repair.target_tier, latest_validation)
+                _record_validation(trace, repair.target_tier, latest_validation, repair_ms)
                 if latest_validation.passed:
                     released = True
                     final_tier, final_text, final_validation = (
@@ -526,8 +618,13 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
             outcome = safe_outcome(plan, final_tier)
         decision = replace(decision, rationale=decision.rationale + (
             " Feedforward attached to response." if outcome else " Feedforward unavailable (render error)."))
-        log_decision(session_id, decision, stage0_screen_result=verdict_str,
-                     session_state_snapshot=state.snapshot(), execution="executed",
+        log_decision(session_id, decision, execution="executed", request_evidence=evidence,
+                     outcome_reason=None, stage0_screen_result=verdict_str,
+                     stage0_confidence=screen_result.confidence,
+                     stage0_matched_patterns=stage0_patterns, session_state_snapshot=state.snapshot(),
+                     alternatives_considered=alternatives, escalations=escalations,
+                     actual_latency_ms=exec_ms, feedforward_returned=bool(outcome),
+                     user_confirmation_state=user_confirmation, checkpoint_kinds=checkpoint_kinds,
                      validation_trace=trace)
         status = (VALIDATION_PASSED if final_validation.passed and not final_validation.failed_open
                   else VALIDATION_NOT_COMPLETED)
@@ -545,8 +642,12 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
     decision = replace(decision, rationale=(
         f"Output withheld ({failure}; repair {trace['repair_status']}: {trace['repair_reason']}). "
         + decision.rationale))
-    log_decision(session_id, decision, stage0_screen_result=verdict_str,
-                 session_state_snapshot=state.snapshot(), execution="executed_withheld",
+    log_decision(session_id, decision, execution="executed_withheld", request_evidence=evidence,
+                 outcome_reason=f"output_withheld_{failure}", stage0_screen_result=verdict_str,
+                 stage0_confidence=screen_result.confidence, stage0_matched_patterns=stage0_patterns,
+                 session_state_snapshot=state.snapshot(), alternatives_considered=alternatives,
+                 escalations=escalations, actual_latency_ms=exec_ms,
+                 user_confirmation_state=user_confirmation, checkpoint_kinds=checkpoint_kinds,
                  validation_trace=trace)
     return PipelineResult(response=message, tier_used="withheld_stage6", blocked=True,
                           block_reason=f"output_withheld_{failure}")
@@ -563,9 +664,10 @@ def _refuse_unsupported_modality(payload, reasons, session_id: str | None) -> Pi
     for the modality problem alone; if the request's own TEXT carries an attack signal, that is still
     handled and charged exactly as it would be without the attachment."""
     session_id = session_id or ANONYMOUS_SESSION
+    ensure_audit_ready()    # fail loud before touching session state, as in process_request
     text = payload.get("text") if isinstance(payload, Mapping) else None
 
-    risk_verdict, stage0_result, screened = "clean", None, False
+    risk_verdict, stage0_result, screened, screen = "clean", None, False, None
     if isinstance(text, str):
         screen = screen_request(text)
         screened = True
@@ -588,7 +690,14 @@ def _refuse_unsupported_modality(payload, reasons, session_id: str | None) -> Pi
     log_decision(session_id, RoutingDecision(
         selected_tier=MethodTier.CACHE, selected_model=None, rationale=rationale,
         cost_estimate=TierCostEstimate(tier=MethodTier.CACHE), policy_flags=[],
-    ), stage0_screen_result=stage0_result, session_state_snapshot=state.snapshot(), execution="blocked")
+    ), execution="blocked",
+        # A non-text refusal is never digested: the caption (if any) was screened for attacks but is
+        # not recorded, and attachment payloads are never read into the audit log.
+        request_evidence=build_request_evidence(None, normalization_version=None, status=NOT_TEXT_INPUT),
+        outcome_reason=UNSUPPORTED_MODALITY, stage0_screen_result=stage0_result,
+        stage0_confidence=screen.confidence if screen is not None else None,
+        stage0_matched_patterns=list(screen.matched_patterns) if screen is not None else None,
+        session_state_snapshot=state.snapshot())
     return PipelineResult(response=UNSUPPORTED_MODALITY_MESSAGE, tier_used="blocked_ingress",
                           blocked=True, block_reason=UNSUPPORTED_MODALITY)
 
@@ -597,6 +706,7 @@ def process_ingress(payload: Mapping[str, Any], session_id: str | None = None) -
     """The text-only boundary in front of process_request (OI-079). Plain-text payloads go straight
     to process_request unchanged; anything else is refused here. No FastAPI dependency, so it can be
     tested directly. `session_id` must already be a VERIFIED id (see session/identity.py)."""
+    ensure_audit_ready()
     verdict = check_modality(payload)
     if verdict.supported:
         return process_request(payload["text"], session_id, payload.get("confirmation_token"))
