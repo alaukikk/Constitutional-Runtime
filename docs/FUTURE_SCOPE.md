@@ -685,3 +685,27 @@ the appropriate Change Proposal and owner approval are required before implement
 
 The purpose of this document is therefore to preserve **what could make the system better later**
 without allowing that possibility to silently expand today's architecture.
+
+## FS-020 — Mixed-Script Token Detection
+
+**Priority:** Medium  
+**Status:** Future  
+**Related:** CP-002, OI-080, OI-081, OI-082
+
+### Motivation
+
+CP-002 explicitly defers a separate `mixed_script_token` signal. A curated confusable-folding table does not cover every homoglyph, and the current proposal must not imply that out-of-table lookalikes are detected.
+
+### Questions to resolve before activation
+
+- What constitutes a token boundary?
+- Which script combinations trigger a signal (for example, Latin with Cyrillic or Greek, and whether other combinations are in scope)?
+- How are combining marks, digits, punctuation, and Unicode normalization handled?
+- How are legitimate multilingual names and single-script non-Latin tokens protected from false positives?
+- How does the signal interact with the unsupported-script gate and the current English-only scope?
+- What benign and adversarial datasets establish useful detection and false-positive behavior?
+
+### Scope boundary
+
+This is a future-scope record only. It is not part of CP-002 implementation, does not authorize code changes, and must not be treated as implemented or as a current security guarantee.
+

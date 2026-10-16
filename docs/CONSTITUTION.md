@@ -88,7 +88,7 @@ What existing component does this affect?
 
 Does it change:
   [ ] architecture (a stage's purpose/inputs/outputs)
-  [ ] interfaces (a shared data shape in policy/schemas.py)
+  [ ] interfaces (a shared data shape in `policy/schemas.py`, or any cross-stage input, output, or security-relevant representation of the request)
   [ ] the runtime constitution (config/constitution.yaml semantics)
   [ ] execution flow (stage ordering, escalation paths)
   [ ] evaluation methodology
