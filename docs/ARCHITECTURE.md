@@ -22,6 +22,12 @@ changing the *structure* of a stage does.
 > Cache is a tier evaluated during routing, never a shortcut that skips
 > the screen, and only ever serves on an exact match of the normalized
 > current message.**
+>
+> The security gates may evaluate derived matching views of the request.
+> Everything downstream of the gates (classifier, tier, cache, confirmation
+> token, audit digest) continues to use normalized text. The text a model
+> receives is therefore not equivalent to the text the gates evaluated, and
+> gate decisions are not a guarantee about what the model reads.
 
 This resolves the trust-boundary question raised during architecture
 review: an attacker cannot use accumulated "harmless-looking" session
@@ -34,7 +40,7 @@ gate, because the gate never looks at session history to begin with.
 
 1. **Purpose:** Normalize input and run the stateless jailbreak/injection screen before anything else touches the request.
 2. **Input:** Raw request text (and, later, other modalities).
-3. **Output:** Normalized text + a screen verdict (clean / suspicious / blocked) + confidence score.
+3. **Output:** Normalized text + a screen verdict (clean / suspicious / blocked) + confidence score + derived matching views used only for Stage 0/1 pattern matching. Matching views are not persisted, cached, digested, or passed to a tier.
 4. **Allowed computational methods:** Regex/heuristic pattern matching (Sprint 1). Adversarially-tested classifier (later sprint, owned by security).
 5. **AI permitted:** No. This stage must remain cheap and non-intelligent by design — an ML/LLM-based characterizer running before this point would itself become ungated attack surface.
 6. **Security boundary:** This *is* the security boundary for the raw request. Runs on every path without exception.
@@ -43,7 +49,7 @@ gate, because the gate never looks at session history to begin with.
 9. **Audit requirements:** Every verdict (including "clean") is logged with matched patterns/confidence.
 10. **Escalation conditions:** Suspicious → flagged for the policy gate. Blocked → response returned immediately, no further stages run.
 11. **Research gap addressed:** Jailbreak literature — attacks are cheap and don't require model access, so filtering upstream of any model call matters more than downstream alignment tuning.
-12. **How we will test it:** Adversarial payload suite (`guardrails/adversarial/`) run as a permanent regression test, not a one-off check.
+12. **How we will test it:** Adversarial payload suite (`guardrails/adversarial/`) run as a permanent regression test, not a one-off check. Matching-view changes additionally require a benign-corpus new-match audit: every new benign match must be justified or removed, and unreviewed report changes fail CI.
 
 **Owner:** Security specialist. **Sprint 1 status:** basic regex version implemented (`guardrails/injection_screen.py`).
 
@@ -52,7 +58,7 @@ gate, because the gate never looks at session history to begin with.
 ## Stage 1 — Constitutional Policy Gate
 
 1. **Purpose:** Apply the actual rulebook to the request, on every path.
-2. **Input:** Normalized text + Stage 0 verdict.
+2. **Input:** Normalized text + Stage 0 verdict + optional Stage 0 matching views. With no views supplied, matching uses normalized text only.
 3. **Output:** List of `PolicyFlag`s + a single most-severe `PolicyAction` (allow/flag/require_human/block).
 4. **Allowed computational methods:** Keyword/rule matching (Sprint 1). More robust matching later — interface (`list[PolicyFlag]` out) stays stable regardless.
 5. **AI permitted:** No, by default. Policy rules are declarative (`constitution.yaml`), not model-based judgment.
@@ -62,7 +68,7 @@ gate, because the gate never looks at session history to begin with.
 9. **Audit requirements:** Every triggered flag logged with rule ID, risk category, action, and reason.
 10. **Escalation conditions:** `BLOCK` → immediate response, no further stages. `REQUIRE_HUMAN` → flows through, but Stage 4/7 must enforce a human checkpoint before or after execution respectively.
 11. **Research gap addressed:** NIST AI RMF GenAI Profile risk categories; OWASP LLM Top 10 (Sensitive Information Disclosure applies regardless of which tier answers).
-12. **How we will test it:** Golden test set of requests with expected flags; every PR must not regress this set.
+12. **How we will test it:** Golden test set of requests with expected flags; every PR must not regress this set. Matching-view changes additionally require transformation-specific benign/adversarial tests and a reviewed new-match audit.
 
 **Owner:** Security specialist. **Sprint 1 status:** implemented (`policy/engine.py`, `config/constitution.yaml`, `config/failure_modes.yaml`).
 
