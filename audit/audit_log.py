@@ -1,4 +1,5 @@
 
+
 """
 audit/audit_log.py -- Stage 7 permanent audit record, schema version 2 (CP-001, accepted
 2026-10-13; target schema in ARCHITECTURE.md Stage 7).
@@ -25,6 +26,7 @@ written in either case.
 """
 import json
 import math
+import threading
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -34,6 +36,12 @@ from audit.request_evidence import validate_request_evidence
 from policy.schemas import RoutingDecision
 
 LOG_PATH = Path("audit_log.jsonl")
+
+# One writer at a time inside this process. Python opens a fresh handle per record, and on Windows an
+# append through separate handles is NOT atomic (each write seeks to the end first), so two threads
+# can overwrite each other and silently drop audit lines. Found by the adversarial concurrency suite.
+# KNOWN LIMIT: this does not serialize separate PROCESSES (e.g. several workers); see OPEN_ENDS.
+_WRITE_LOCK = threading.Lock()
 
 SCHEMA_VERSION = 2
 
@@ -243,5 +251,6 @@ def log_decision(
         "decision": decision_dict,      # legacy nested snapshot, kept unchanged for now
     }
     line = json.dumps(entry, default=str) + "\n"
-    with open(LOG_PATH, "a") as f:
-        f.write(line)
+    with _WRITE_LOCK:
+        with open(LOG_PATH, "a") as f:
+            f.write(line)
