@@ -1,6 +1,6 @@
 # CP-001: Stage 7 audit record and request evidence
 
-**Status:** ACCEPTED by project owner on 2026-10-13. Documentation amendment is proposed in a pull request; implementation has not started.  
+**Status:** ACCEPTED by project owner on 2026-10-13. Schema v2 is implemented and covered by the merged Sprint 6 tests. CP-001 implementation check #6 (application exception-log exposure) remains open as OI-084.  
 **Author:** ChatGPT (independent architecture/research review)  
 **Implementation reviewer:** Claude  
 **Decider:** Project owner under Rule 4  
