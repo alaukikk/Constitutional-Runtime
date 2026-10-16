@@ -1,4 +1,6 @@
 
+
+
 """Audit schema v2 (CP-001) through the live pipeline: every terminal path, end to end.
 
 What this proves that the unit tests in tests/audit cannot:
@@ -425,7 +427,7 @@ def test_a_reporter_supplied_request_can_be_matched_to_its_record_and_only_its_r
     process_request(f"{BENIGN} something else", session_id="r2")
     keys = {_key_id(): _key()}
     # the reporter has the raw text, with its original spacing and invisible characters
-    hits = list(find_matching_records(f"  {BENIGN}​ {CANARY}  ", keys, env.path))
+    hits = list(find_matching_records(f"  {BENIGN}\u200b {CANARY}  ", keys, env.path))
     assert [h["session_id"] for h in hits] == ["r1"]
     assert hits[0]["final_outcome"] == "released"
     assert list(find_matching_records("a request nobody made", keys, env.path)) == []
