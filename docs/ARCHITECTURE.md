@@ -178,7 +178,7 @@ gate, because the gate never looks at session history to begin with.
 11. **Research gap addressed:** NIST's automation-bias category; the critical-thinking paper's "stewardship" framing (accountability stays with the human even when production is delegated).
 12. **How we will test it:** Confirm every audit record contains the full schema below; confirm human checkpoints actually block completion until confirmed for flagged categories.
 
-**Audit record schema (target v2 — accepted by CP-001 on 2026-10-13; implementation remains pending):**
+**Audit record schema (v2 — accepted by CP-001 on 2026-10-13; implemented and exercised by the Sprint 6 test suite):**
 ```json
 {
   "schema_version": 2,
@@ -225,7 +225,7 @@ gate, because the gate never looks at session history to begin with.
 }
 ```
 
-**Owner:** Audit/logging track. **Implementation status:** schema v2 is accepted as a target; rollout remains pending. Existing JSONL records without `schema_version` remain v1 and are not rewritten. New records use the complete v2 shape. If no tier ran, top-level `selected_tier` and `estimated_cost` are `null`; the nested legacy `decision` is retained unchanged during migration. `actual_cost.latency_ms` is measured Stage 5 wall-clock time and is null when Stage 5 did not run; energy and dollars are null until genuinely measured. Per-attempt latency belongs in `validation_trace` events. See `docs/proposals/CP-001-stage7-audit-record.md` for request-evidence, escalation-kind, key-handling, and migration requirements.
+**Owner:** Audit/logging track. **Implementation status:** schema v2 is implemented in `audit/audit_log.py` and `audit/request_evidence.py`; the live pipeline audit-schema tests cover terminal paths and the documented null/enum states. Existing JSONL records without `schema_version` remain v1 and are not rewritten. New records use the v2 shape. `NORMALIZATION_VERSION = "1"` is pinned by `tests/guardrails/test_normalization_golden.py`; the golden table records existing behavior and does not certify that behavior as secure. Escalation events distinguish `ladder_fallthrough` from `repair`. Audit appends are serialized within one process by `_WRITE_LOCK`; this is not multi-process-safe. CP-001 check #6 remains open as OI-084: application exception logging must be reviewed separately. See `docs/proposals/CP-001-stage7-audit-record.md` for request-evidence, key-handling, and migration requirements.
 
 ---
 

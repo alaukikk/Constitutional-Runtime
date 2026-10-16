@@ -31,7 +31,7 @@ table that makes that traceability checkable rather than asserted.
 |---|---|
 | `session/identity.py`, `api/settings.py` | [PROJECT] OI-013/OI-078 define the server-issued session identity boundary and its residual limits. [JUDGMENT] HMAC-SHA256 token format, token TTL, issuance-rate limits, per-process in-memory limiter, client-key derivation from peer address, and fail-closed issuance/verification behavior are implementation choices.  |
 | `guardrails/injection_screen.py` | [SPEC] Stage 0 #5 requires a deterministic/no-AI ingress constraint and the Stage 0 verdict set remains clean/suspicious/blocked. [PROJECT] OI-077 implements an English-scope refusal for requests whose letters are mostly non-Latin script; injection/block patterns run first, the language-only case runs no later stage, and the API records it without session-risk charging. [JUDGMENT] the ≥3 non-Latin-letter threshold, strictly-more-than-half majority threshold, and sole-reason risk exemption. This detects scripts, not languages; Latin-script non-English remains routed under the English-keyword rules (OI-076/FS-017).
-| `guardrails/adversarial/` | Jailbreak Attacks and Defenses (attacks evolve faster than defenses — router/classifier need the same scrutiny) |
+| `guardrails/adversarial/` | [RESEARCH] Jailbreak Attacks and Defenses supports testing the upstream screen and routing components rather than assuming defenses generalize. [PROJECT] Sprint 6 adds whole-pipeline and session-rotation suites with strict xfails for currently succeeding attacks/accepted limits. The current suites name findings F-01–F-09 and report 32 strict xfails. These are measurements of current behavior: GAP findings are defects, LIMIT findings are bounded design limits, and neither category demonstrates injection robustness. Green CI means the suite ran and its expected assertions held, not that the known attacks were blocked. See OI-080–OI-085. |
 | `policy/engine.py`, `config/constitution.yaml` | NIST AI RMF GenAI Profile |
 | `config/failure_modes.yaml` | NIST AI RMF (Environmental Impacts + Human-AI Configuration sections implicitly require explicit failure semantics) |
 | `policy/governance/` | [RESEARCH] NIST AI RMF GenAI Profile (Govern function supports defined responsibilities, governance processes, and documentation). [PROJECT] OI-067 implements CODEOWNERS plus a machine-readable constitutional-file integrity log. [JUDGMENT] SHA-256 line-ending normalization, record schema, and the boundary that a matching record does not imply approval are implementation choices. |
@@ -61,6 +61,10 @@ table that makes that traceability checkable rather than asserted.
 | `audit/audit_log.py` | [SPEC] Stage 7 audit schema target; Stage 5 #8 (actual vs. estimated cost). [PROJECT] OI-058, OI-071. |
 
 ---
+
+## Sprint 6 adversarial evidence (current-behavior measurement)
+
+The merged whole-pipeline and session-rotation suites are collected in CI. They use strict xfails for known gaps and accepted limits so those findings remain executable rather than silently appearing as successful defenses. The current evidence set names F-01–F-09 and contains 32 strict xfails. In this harness, ordinary passing tests are defenses that held for the tested cases; `GAP` xfails identify defects, while `LIMIT` xfails record accepted limits. The suite does not establish broad injection robustness, generalization to unseen attacks, or production readiness. Normalization and Stage 1 matching defects remain open under OI-080/OI-081; the pattern-only limitation is OI-082; session reset, multi-process audit, operational logging, and repeated confirmation resubmission are OI-078/OI-083/OI-084/OI-085.
 
 ## Evaluation framework
 

@@ -170,30 +170,33 @@ Rendering failures currently fail open so execution can continue without feedfor
 
 **Verification boundary:** Sprint 5 closure is an owner decision. The 816/1 result is owner-reported. RAG completion, classifier calibration, empirical resource measurement, and the remaining open items remain outside the closure claim.
 
-## Sprint 6 — Modality, identity hardening, audit, adversarial testing (IN PROGRESS)
+## Sprint 6 — Modality, identity hardening, audit, adversarial testing (CLOSE-OUT DOCUMENTED)
 
 ### Completed
 
-- **Server-issued session identity (OI-013/OI-040 scope):** HTTP clients no longer choose the authoritative session ID. `POST /v1/session` issues a server-signed token; `POST /v1/respond` requires and verifies it before processing. OI-013 is resolved only for client-chosen and forged IDs; OI-078 tracks the residual ability to request a NEW clean session. OI-040 is narrowed but remains open because possession of the server-issued token does not prove human identity.
-- **Text-only ingress boundary (OI-079):** unsupported image/audio/video/file/attachment-style input, a declared non-text modality, non-string `text`, or embedded base64 media data URI is refused at ingress with `unsupported_modality`; no tier/model runs. Non-JSON bodies are refused with HTTP 415. The modality problem alone adds no session risk and does not consume a confirmation token; the text's own Stage 0 verdict remains authoritative.
+- **Server-issued session identity (OI-013/OI-040 scope):** HTTP clients no longer choose the authoritative session ID. `POST /v1/session` issues a server-signed token; `POST /v1/respond` requires and verifies it before processing. OI-013 is resolved only for client-chosen and forged IDs; OI-078 tracks fresh-session reset and issuance-limit residuals. OI-040 remains open because token possession does not prove human identity; the adversarial suite verifies session/text binding, single use, expiry, and block non-overriding.
+- **Text-only ingress boundary (OI-079):** unsupported image/audio/video/file/attachment-style input, declared non-text modality, non-string `text`, and embedded base64 media data URIs are refused at ingress with `unsupported_modality`; no tier/model runs. Non-JSON bodies receive HTTP 415. Modality-only refusal adds no session risk and does not consume a confirmation token; the text's Stage 0 verdict remains authoritative.
+- **GitHub Actions CI:** `.github/workflows/tests.yml` exists and the `pytest (Python 3.11)` job completed successfully on `main` commit `20bef7523433630191e4913d45ef17648201f7c7` (run #38878440684, 2026-10-16; **1,029 passed, 32 xfailed, 1 warning**, Linux/Python 3.11.17). The repository ruleset currently requires code-owner review but does **not** list this status check as a required check; configure that separately before calling CI a merge gate.
+- **Audit schema v2 (CP-001):** implemented in `audit/audit_log.py` and `audit/request_evidence.py`; `tests/api/test_audit_schema_v2_pipeline.py` exercises live terminal paths and schema states. Stage 0 normalization version 1 is pinned by a golden test. OI-042 is resolved for first-class checkpoint fields; application exception-log exposure remains open as OI-084.
+- **Adversarial suites:** whole-pipeline and session-rotation suites are committed and collected. The suite uses strict xfails to keep known gaps and accepted limits executable and visible. The merged CI run reports **1,029 passed, 32 xfailed, 1 warning** on Linux/Python 3.11.17; that establishes test execution, not injection robustness. The current suite documents nine named findings (F-01–F-09) and 32 strict xfails, including known normalization/policy-matching gaps, pattern-only limits, session-reset limits, and the confirmation-resubmission behavior.
+- **CODEOWNERS:** both `.github/CODEOWNERS` and `policy/governance/CODEOWNERS` include `/.github/workflows/`; the canonical/enforcement copies are intended to remain identical and are test-enforced.
 
 ### Remaining
 
-- **GitHub Actions CI:** not yet implemented. The existing governance integrity test is not yet an automated CI merge gate.
-- **Full audit schema:** not yet complete. Finalize only genuinely measured fields; measured latency is acceptable, while energy remains explicitly an estimate while the LLM is a stub. OI-042 remains open until the full audit-schema work is complete.
-- **Adversarial suites:** not yet completed against the full constitutional pipeline.
-- **`/.github/workflows/` CODEOWNERS protection:** not yet added to both CODEOWNERS copies.
-- OI-022 remains open until CI/test-running assumptions are exercised under CI.
+- **Required CI check:** update the main-branch ruleset to require `pytest (Python 3.11)`. The current ruleset has no `required_status_checks` rule, so a green run is not yet a merge gate.
+- **Owner decisions for OI-080 and OI-081:** Stage 0 normalization defects require a decision on a normalization-version bump; Stage 1 matching changes are policy-governed and require the prescribed governance/review path. No code change is made by this documentation update.
+- **OI-084 application-log exposure review:** constrain exception logging and ensure request content cannot flow into operational logs before any non-local deployment.
+- **Known residuals:** OI-078 fresh-session reset, OI-083 cross-process audit append safety, and OI-085 repeated `REQUIRE_HUMAN` resubmission/risk charging remain open.
 
-### Sprint 6 decisions
+### Sprint 6 decisions and evidence boundaries
 
-- Session identity: server-issued session identity (OI-013/OI-040).
-- Runtime scope: text-only; non-text input is refused at ingress without AI invocation and without session-risk charging for the modality refusal alone.
-- Audit: record only genuinely measured fields; energy is labelled an estimate while the LLM is a stub.
-- CI: GitHub Actions is a Sprint 6 deliverable, and `/.github/workflows/` is to be protected by both CODEOWNERS copies.
-- Real LLM integration is deferred to **Sprint 7**.
+- Runtime scope remains text-only and English-only; non-text input is refused rather than processed by a multimodal defense.
+- Audit records use CP-001 schema v2. The log stores no raw request text; the per-record-salted HMAC is evidence for reporter-supplied matching, not a way to reconstruct unflagged requests.
+- The normalization golden test freezes version 1's outputs; it does not certify the normalization as secure. F-01/F-03/F-04/F-05 remain actionable defects pending owner decisions.
+- The in-process audit write lock prevents same-process writer collisions only. Cross-process/shared-sink durability is future work.
+- Real LLM integration remains deferred to **Sprint 7**.
 
-**Limits:** server-issued IDs stop client-chosen and forged IDs; they do not stop a client asking for a NEW session. The client key is weak, state is per-process/in-memory, and the issuance limits are placeholders (OI-078/OI-020/OI-041). The text-only boundary removes the cross-modal surface by refusing it; it does not claim to recognise every possible smuggling method. The runtime remains English only and does not claim multilingual support.
+**Close-out boundary:** Sprint 6 implementation and its current automated checks are documented as complete, but CI is not yet a required branch check and the listed security, deployment, and policy decisions remain open. This is not a claim that the runtime is production-ready or injection-robust.
 
 ## Sprints 7–8 — The actual experiment
 
