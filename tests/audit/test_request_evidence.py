@@ -1,4 +1,6 @@
 
+
+
 """CP-001: salted-HMAC request evidence, key handling, and verification of a supplied request."""
 import hashlib
 import hmac
@@ -179,9 +181,9 @@ def evidence_for(raw_text):
 
 
 def test_a_reporter_supplied_request_matches_its_own_record_after_normalization():
-    ev = evidence_for("  What is the capital​ of Japan?  ")
+    ev = evidence_for("  What is the capital\u200b of Japan?  ")
     assert matches_request(ev, "What is the capital of Japan?", KEY)
-    assert matches_request(ev, "Ｗhat is the capital of Japan?", KEY)     # NFKC folds full-width W
+    assert matches_request(ev, "\uff37hat is the capital of Japan?", KEY)     # NFKC folds full-width W
 
 
 def test_a_different_request_or_the_wrong_key_does_not_match():
