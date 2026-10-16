@@ -443,6 +443,27 @@ The current implementation deliberately does **not** trust proxy headers. Future
 
 ---
 
+## FS-022 — Multi-process-safe Audit Sink
+
+**Priority:** Medium  
+**Status:** Future  
+**Related:** OI-020, OI-041, OI-083, FS-020
+
+The current JSONL audit writer serializes appends with an in-process lock. That prevents competing threads in one process from interleaving writes through the current path, but it does not coordinate independent worker processes or hosts. A multi-worker deployment could therefore lose audit lines even while each worker's local lock behaves correctly.
+
+Before pursuing this extension:
+
+- define whether the audit sink is a single-host append-only file, a database, or a centralized logging service;
+- specify atomic append/transaction semantics, durability, rotation, recovery, and behavior when the sink is unavailable;
+- add a multi-process concurrency regression test that verifies every submitted record is retained exactly once;
+- keep audit records content-free under CP-001 and test privacy constraints through the new sink;
+- coordinate the sink with shared session/checkpoint state (FS-020) without assuming that solving one also solves the other;
+- document operational access, retention, and failure alerting.
+
+This is future work, not a claim that the current in-process lock provides multi-process safety. It is not required to complete the current local capstone experiment, but must be resolved before relying on a single local JSONL file across multiple workers or hosts.
+
+---
+
 ## FS-013 — Governance Automation and Change Traceability
 
 **Priority:** Medium  
@@ -621,6 +642,7 @@ The initial recommended order is:
 15. FS-019 — Server-Side Accounts and User Identity
 16. FS-020 — Shared Session and Limiter Storage
 17. FS-021 — Trusted Proxy Client-Key Handling
+18. FS-022 — Multi-process-safe Audit Sink
 18. FS-013 — Governance Automation
 19. FS-011 — Expanded Modality Routing
 20. FS-017 - Multilingual routing and safety coverage
