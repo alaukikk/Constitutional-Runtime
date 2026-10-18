@@ -1,6 +1,6 @@
 # CP-002: Matching view for Stage 0 / Stage 1 pattern matching (Part A)
 
-**Status:** ACCEPTED by project owner on 2026-10-17; implementation not yet authorized by this document alone.
+**Status:** DESIGN ACCEPTED; IMPLEMENTATION AUTHORIZED by project owner on 2026-10-17. Implementation remains subject to the acceptance tests and review requirements below.
 **Author:** Claude (implementation analysis). **Decider:** project owner under Rule 4.
 **Date:** 2026-10-17
 **Basis:** Part A matching-view specification and review findings RF-1 through RF-8. This record captures the owner's explicit approval of D-1 through D-7.
@@ -173,4 +173,4 @@ The project owner explicitly approved D-1 through D-7 on 2026-10-17.
 | D-6 | Accept RF-1 through RF-8 as required revisions with testable criteria: preserve v1 match on view failure, test pipeline wiring, pin explicit Unicode tables, perform new-match audit, and justify/remove each benign-corpus new match. | ACCEPTED |
 | D-7 | Drop Greek τ→t from the initial table; reconsider later only with specific adversarial and benign examples. | ACCEPTED |
 
-**Implementation boundary:** Acceptance records architectural authorization for the proposal, not implementation completion. The implementation PR must satisfy the acceptance tests above, receive required CODEOWNERS review, and report test results accurately. No implementation or test success is claimed by this document.
+**Implementation authorization and boundary:** The project owner explicitly authorized implementation on 2026-10-17. Code work may begin in a separate implementation PR. That PR must satisfy the acceptance tests above, receive required CODEOWNERS review, and report test results accurately. This authorization is not implementation completion or test evidence; no implementation or test success is claimed by this document.
