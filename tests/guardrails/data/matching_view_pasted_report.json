@@ -1,0 +1,146 @@
+{
+ "samples": 14,
+ "rows": [
+  {
+   "id": "word_doc_paragraph",
+   "verdict": "clean",
+   "patterns": [],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 0.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "markdown_bullets_with_system_word",
+   "verdict": "clean",
+   "patterns": [],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 0.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "log_excerpt",
+   "verdict": "blocked",
+   "patterns": [
+    "nested_instruction_marker"
+   ],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 5.0,
+   "reaches_require_human_threshold": true
+  },
+  {
+   "id": "tsv_table",
+   "verdict": "clean",
+   "patterns": [],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 0.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "slack_thread_with_nbsp_and_quotes",
+   "verdict": "clean",
+   "patterns": [],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 0.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "code_with_hyphens_and_underscores",
+   "verdict": "suspicious",
+   "patterns": [
+    "excessive_special_chars"
+   ],
+   "rules": [
+    "DP-002"
+   ],
+   "most_severe_policy_action": "flag",
+   "session_risk_after_one_request": 3.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "email_with_bom_and_crlf",
+   "verdict": "clean",
+   "patterns": [],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 0.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "chat_transcript_with_roles",
+   "verdict": "clean",
+   "patterns": [],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 0.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "recipe_with_fractions_and_dashes",
+   "verdict": "clean",
+   "patterns": [],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 0.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "emoji_heavy_message",
+   "verdict": "clean",
+   "patterns": [],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 0.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "pdf_copy_with_soft_hyphens",
+   "verdict": "suspicious",
+   "patterns": [
+    "repeated_zero_width"
+   ],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 2.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "word_with_two_zero_width_marks",
+   "verdict": "suspicious",
+   "patterns": [
+    "repeated_zero_width"
+   ],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 2.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "long_prose_with_quoted_dialogue",
+   "verdict": "clean",
+   "patterns": [],
+   "rules": [],
+   "most_severe_policy_action": "allow",
+   "session_risk_after_one_request": 0.0,
+   "reaches_require_human_threshold": false
+  },
+  {
+   "id": "spreadsheet_headers",
+   "verdict": "clean",
+   "patterns": [],
+   "rules": [
+    "DP-002"
+   ],
+   "most_severe_policy_action": "flag",
+   "session_risk_after_one_request": 1.0,
+   "reaches_require_human_threshold": false
+  }
+ ],
+ "requests_reaching_threshold_alone": 1,
+ "cumulative_risk_if_all_sent_in_one_session": 13.0,
+ "turn_at_which_one_session_first_reaches_threshold": 3
+}
