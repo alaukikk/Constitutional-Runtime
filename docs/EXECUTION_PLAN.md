@@ -184,15 +184,15 @@ Rendering failures currently fail open so execution can continue without feedfor
 ### Remaining
 
 - **Required CI check:** update the main-branch ruleset to require `pytest (Python 3.11)`. The current ruleset has no `required_status_checks` rule, so a green run is not yet a merge gate.
-- **Owner decisions for OI-080 and OI-081:** Stage 0 normalization defects require a decision on a normalization-version bump; Stage 1 matching changes are policy-governed and require the prescribed governance/review path. No code change is made by this documentation update.
+- **CP-002 Part A (OI-080/OI-081):** implementation is committed in the separate Part A implementation PR and is under review. Stage 0 derives raw-text matching views while preserving normalization v1 for downstream use; Stage 1 canonicalises policy keywords and matches flat views in addition to v1. `config/constitution.yaml` is unchanged. F-01/F-03/F-05 are closed only for the cases covered by committed tests; F-04/F-06 remain unresolved, and this is **not injection-robust**. OI-080/OI-081 stay open until the implementation PR merges, CI is green, and the required review is complete. Stage 1 changes in `policy/engine.py` require policy-governance/code-owner review.
 - **OI-084 application-log exposure review:** constrain exception logging and ensure request content cannot flow into operational logs before any non-local deployment.
-- **Known residuals:** OI-078 fresh-session reset, OI-083 cross-process audit append safety, and OI-085 repeated `REQUIRE_HUMAN` resubmission/risk charging remain open.
+- **Known residuals:** OI-078 fresh-session reset, OI-083 cross-process audit append safety, OI-085 repeated `REQUIRE_HUMAN` resubmission/risk charging, and CP-002 carry-overs OI-086–OI-089 (invisible-signal false positives, identifier-style matches, control-character separators, and the pre-existing pasted-log false positive) remain open.
 
 ### Sprint 6 decisions and evidence boundaries
 
 - Runtime scope remains text-only and English-only; non-text input is refused rather than processed by a multimodal defense.
 - Audit records use CP-001 schema v2. The log stores no raw request text; the per-record-salted HMAC is evidence for reporter-supplied matching, not a way to reconstruct unflagged requests.
-- The normalization golden test freezes version 1's outputs; it does not certify the normalization as secure. F-01/F-03/F-04/F-05 remain actionable defects pending owner decisions.
+- The normalization golden test freezes version 1's outputs; it does not certify the normalization as secure. CP-002 Part A adds matching-only views without changing the v1 golden test. F-01/F-03/F-05 are closed only for the tested cases; F-04/F-06 remain unresolved. The matching-view corpus is hand-written by Claude (70 items), not real traffic, and cannot establish real-world false-positive rates.
 - The in-process audit write lock prevents same-process writer collisions only. Cross-process/shared-sink durability is future work.
 - Real LLM integration remains deferred to **Sprint 7**.
 
