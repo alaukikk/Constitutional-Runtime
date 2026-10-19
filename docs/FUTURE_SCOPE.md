@@ -643,10 +643,13 @@ The initial recommended order is:
 16. FS-020 — Shared Session and Limiter Storage
 17. FS-021 — Trusted Proxy Client-Key Handling
 18. FS-022 — Multi-process-safe Audit Sink
-18. FS-013 — Governance Automation
-19. FS-011 — Expanded Modality Routing
-20. FS-017 - Multilingual routing and safety coverage
-21. FS-018 - UI language-gate affordance and detection limits
+19. FS-013 — Governance Automation
+20. FS-011 — Expanded Modality Routing
+21. FS-017 — Multilingual routing and safety coverage
+22. FS-018 — UI language-gate affordance and detection limits
+23. FS-023 — Unicode-Data-Based Emoji Sequence Validation
+24. FS-024 — Maintained Confusable Coverage and Real-Traffic Benign Corpus
+25. FS-025 — Mixed-Script Token Detection
 
 This ordering is provisional. Evaluation results from the completed current plan should be allowed
 to reorder it.
@@ -706,7 +709,7 @@ The current matching-view implementation uses a hand-curated 25-entry confusable
 
 Future work may evaluate a maintained source such as Unicode Technical Standard #39 for confusable detection, with a version-pinned dependency/data snapshot, clear scope, adversarial tests, and benign false-positive review. In parallel, replace or supplement the synthetic benign corpus with privacy-reviewed real-traffic samples or a carefully designed representative corpus. Any broadened matching must be evaluated for benign matches and policy-action changes before adoption; broader coverage is not automatically safer.
 
-## FS-020 — Mixed-Script Token Detection
+## FS-025 — Mixed-Script Token Detection
 
 **Priority:** Medium  
 **Status:** Future  
