@@ -40,7 +40,7 @@ gate, because the gate never looks at session history to begin with.
 
 1. **Purpose:** Normalize input and run the stateless jailbreak/injection screen before anything else touches the request.
 2. **Input:** Raw request text (and, later, other modalities).
-3. **Output:** Normalized text + a screen verdict (clean / suspicious / blocked) + confidence score + derived matching views used only for Stage 0/1 pattern matching. Matching views are not persisted, cached, digested, or passed to a tier.
+3. **Output:** Normalized text (v1) + a screen verdict (clean / suspicious / blocked) + confidence score + derived matching views used only for Stage 0/1 pattern matching. Stage 0 builds views from raw request text using NFKC, lowercase, and pinned table rules, then matches each pattern against v1 text OR its assigned view (`flat`, `lines`, or v1-only); views can only add matches. The new `repeated_zero_width` signal counts invisible characters in raw text outside well-formed emoji sequences and marks the request SUSPICIOUS at 2 or more (provisional threshold under D-2). It is not an unsupported-script refusal, so an unsupported-script refusal alone still adds no session risk (OI-077). Views are matching-only: they are never sent to a tier, cached, digested, logged, or used in the confirmation token. Normalization version remains `1`; the golden test is unchanged.
 4. **Allowed computational methods:** Regex/heuristic pattern matching (Sprint 1). Adversarially-tested classifier (later sprint, owned by security).
 5. **AI permitted:** No. This stage must remain cheap and non-intelligent by design — an ML/LLM-based characterizer running before this point would itself become ungated attack surface.
 6. **Security boundary:** This *is* the security boundary for the raw request. Runs on every path without exception.
@@ -58,7 +58,7 @@ gate, because the gate never looks at session history to begin with.
 ## Stage 1 — Constitutional Policy Gate
 
 1. **Purpose:** Apply the actual rulebook to the request, on every path.
-2. **Input:** Normalized text + Stage 0 verdict + optional Stage 0 matching views. With no views supplied, matching uses normalized text only.
+2. **Input:** Normalized text (v1) + Stage 0 verdict + optional Stage 0 matching views. Stage 1 canonicalises each policy keyword once and matches it against the flat views as well as v1 text. With no views supplied, matching uses normalized text only; a v1 match is preserved if view processing fails. A wrong-typed `match_views` is a wiring/programming error and raises `TypeError`.
 3. **Output:** List of `PolicyFlag`s + a single most-severe `PolicyAction` (allow/flag/require_human/block).
 4. **Allowed computational methods:** Keyword/rule matching (Sprint 1). More robust matching later — interface (`list[PolicyFlag]` out) stays stable regardless.
 5. **AI permitted:** No, by default. Policy rules are declarative (`constitution.yaml`), not model-based judgment.
@@ -71,6 +71,8 @@ gate, because the gate never looks at session history to begin with.
 12. **How we will test it:** Golden test set of requests with expected flags; every PR must not regress this set. Matching-view changes additionally require transformation-specific benign/adversarial tests and a reviewed new-match audit.
 
 **Owner:** Security specialist. **Sprint 1 status:** implemented (`policy/engine.py`, `config/constitution.yaml`, `config/failure_modes.yaml`).
+
+**CP-002 Part A boundary (D-4):** A gate may match an obfuscated request through a derived view while the classifier and model still receive the v1 normalized form. This is an explicit temporary limitation, not a guarantee that the model receives the representation evaluated by the gates. Part B decides whether model-bound text should change.
 
 ---
 
