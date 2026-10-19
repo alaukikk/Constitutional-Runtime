@@ -17,6 +17,7 @@
 /config/constitution.yaml   @alaukikk
 /config/failure_modes.yaml  @alaukikk
 /policy/                    @alaukikk
+/guardrails/match_view.py   @alaukikk
 /docs/ARCHITECTURE.md       @alaukikk
 /docs/CONSTITUTION.md       @alaukikk
 /.github/workflows/         @alaukikk
