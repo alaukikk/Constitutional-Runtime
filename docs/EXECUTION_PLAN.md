@@ -203,8 +203,6 @@ Rendering failures currently fail open so execution can continue without feedfor
 This is where the capstone's central claims get tested, using the evaluation framework in `RESEARCH_TRACEABILITY.md`.
 
 1. **Build the golden test set** properly — the working set accumulated informally across Sprints 2–6, cleaned up and expanded.
-
-1. **Build the golden test set** properly — the working set accumulated informally across Sprints 2–6, cleaned up and expanded.
 2. **Run `cost/breakeven.py` for real** against accumulated usage data — answer the central research question: at what workload characteristics does the runtime produce net savings after its own overhead?
 3. **Full-team red-team session** — adversarial inputs against the whole pipeline; sanity-check cost numbers; confirm escalation fires correctly under real (not synthetic) conditions.
 4. **Comparative evaluation** — constitutional runtime vs. "always call the LLM directly" baseline, across all five evaluation dimensions (resource efficiency, decision quality, constitutional compliance, human agency, runtime overhead).
