@@ -1,5 +1,6 @@
 
 
+
 """
 api/main.py — Stage 0 -> Stage 1 -> Stage 2 (session) -> Stage 3/5 (tier
 ladder) -> Stage 6 (validator, one bounded repair) -> Stage 7 (audit).
@@ -381,7 +382,9 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
     normalized = screen_result.normalized_text
 
     # --- Stage 1 ---
-    flags, most_severe = get_policy_engine().evaluate(normalized)
+    # CP-002: Stage 1 also sees the matching views Stage 0 built from the raw text. They are used for
+    # matching only; `normalized` stays the text every later stage, the cache and the digest use.
+    flags, most_severe = get_policy_engine().evaluate(normalized, match_views=screen_result.match_views)
     rule_ids = [f.rule_id for f in flags]
 
     # --- Human confirmation (Stage 1 #10 / Stage 4 / Stage 7) ---
