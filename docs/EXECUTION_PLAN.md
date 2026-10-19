@@ -183,22 +183,34 @@ Rendering failures currently fail open so execution can continue without feedfor
 
 ### Remaining
 
-- **Required CI check:** update the main-branch ruleset to require `pytest (Python 3.11)`. The current ruleset has no `required_status_checks` rule, so a green run is not yet a merge gate.
-- **Owner decisions for OI-080 and OI-081:** Stage 0 normalization defects require a decision on a normalization-version bump; Stage 1 matching changes are policy-governed and require the prescribed governance/review path. No code change is made by this documentation update.
+- **Required CI check (operationally open):** the main-branch ruleset must require `pytest (Python 3.11)`. The current ruleset has no `required_status_checks` rule, so a green run is not yet a merge gate. This requires a repository-settings change; it is not completed by the documentation/CODEOWNERS PR.
+- **CP-002 Part A (OI-080/OI-081):** implementation is committed in the separate Part A implementation PR and is under review. Stage 0 derives raw-text matching views while preserving normalization v1 for downstream use; Stage 1 canonicalises policy keywords and matches flat views in addition to v1. `config/constitution.yaml` is unchanged. F-01/F-03/F-05 are closed only for the cases covered by committed tests; F-04/F-06 remain unresolved, and this is **not injection-robust**. OI-080/OI-081 stay open until the implementation PR merges, CI is green, and the required review is complete. Stage 1 changes in `policy/engine.py` require policy-governance/code-owner review.
 - **OI-084 application-log exposure review:** constrain exception logging and ensure request content cannot flow into operational logs before any non-local deployment.
-- **Known residuals:** OI-078 fresh-session reset, OI-083 cross-process audit append safety, and OI-085 repeated `REQUIRE_HUMAN` resubmission/risk charging remain open.
+- **Known residuals:** OI-078 fresh-session reset, OI-083 cross-process audit append safety, OI-085 repeated `REQUIRE_HUMAN` resubmission/risk charging, and CP-002 carry-overs OI-086–OI-090 remain tracked. OI-086/OI-087/OI-089 are provisional defaults; OI-088 is an accepted defect/limit, and OI-090 records the downstream v1-text limitation. The Stage 0/1 execution-scope guard is in `OPEN_ENDS.md`.
 
 ### Sprint 6 decisions and evidence boundaries
 
 - Runtime scope remains text-only and English-only; non-text input is refused rather than processed by a multimodal defense.
 - Audit records use CP-001 schema v2. The log stores no raw request text; the per-record-salted HMAC is evidence for reporter-supplied matching, not a way to reconstruct unflagged requests.
-- The normalization golden test freezes version 1's outputs; it does not certify the normalization as secure. F-01/F-03/F-04/F-05 remain actionable defects pending owner decisions.
+- The normalization golden test freezes version 1's outputs; it does not certify the normalization as secure. CP-002 Part A adds matching-only views without changing the v1 golden test. F-01/F-03/F-05 are closed only for the tested cases; F-04/F-06 remain unresolved. The matching-view corpus is hand-written by Claude (70 items), not real traffic, and cannot establish real-world false-positive rates.
 - The in-process audit write lock prevents same-process writer collisions only. Cross-process/shared-sink durability is future work.
 - Real LLM integration remains deferred to **Sprint 7**.
 
 **Close-out boundary:** Sprint 6 implementation and its current automated checks are documented as complete, but CI is not yet a required branch check and the listed security, deployment, and policy decisions remain open. This is not a claim that the runtime is production-ready or injection-robust.
 
 ## Sprints 7–8 — The actual experiment
+
+### Provisional defaults in force
+
+Copy/update this table in the Sprint 7–8 report using the live OI-086–OI-090 rows in `OPEN_ENDS.md`. This table records assumptions and limitations; it is not evidence that a property holds. OI-088 is included so the known control-character defect is not silently dropped, but it is explicitly **not** a Provisional default.
+
+| OI | Default | Revisit trigger | Evidence gathered during Sprints 7–8 | Outcome (kept / changed / still open) |
+|---|---|---|---|---|
+| OI-086 | Keep invisible-character threshold at 2; no U+00AD exemption. | False-positive rate on real/shadow traffic, especially U+00AD and ZWSP pairs in otherwise-clean requests. | To be recorded during Sprints 7–8; current 14-sample pasted report is not representative traffic. | Still open |
+| OI-087 | Accept identifier-style policy matches for current evaluation. | Frequency in real/shadow traffic and confirmation/abandonment outcomes. | To be recorded during Sprints 7–8. | Still open |
+| OI-088 | No provisional default; known control-character separator defect remains an accepted limit. | Before any separator-robustness claim; reopen Stage 0 only under the evidence guard. | To be recorded if relevant evidence appears. | Still open |
+| OI-089 | Accept the pre-existing pasted-log false positive as a pattern-only Stage 0 limitation. | Frequency of legitimate logs/transcripts blocked solely by `nested_instruction_marker`. | To be recorded during Sprints 7–8. | Still open |
+| OI-090 | Keep v1 text downstream; do not draft CP-003 now. | Red-team/shadow-mode evidence that obfuscation reaching classifier/model changes an outcome. | To be recorded during Sprints 7–8; report must distinguish gate-evaluated text from model/classifier input. | Still open |
 
 This is where the capstone's central claims get tested, using the evaluation framework in `RESEARCH_TRACEABILITY.md`.
 

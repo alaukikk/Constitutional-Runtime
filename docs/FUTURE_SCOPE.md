@@ -686,6 +686,26 @@ the appropriate Change Proposal and owner approval are required before implement
 The purpose of this document is therefore to preserve **what could make the system better later**
 without allowing that possibility to silently expand today's architecture.
 
+## FS-023 — Unicode-Data-Based Emoji Sequence Validation
+
+**Priority:** Medium  
+**Status:** Future  
+**Related:** CP-002, OI-086
+
+The current CP-002 Part A implementation uses a bounded structural rule to exempt well-formed-looking emoji sequences from invisible-character counting. The joiner limit of 3 and subdivision-flag tag length range of 2–8 are implementation judgments, not values prescribed by the supplied research PDFs.
+
+Before expanding or relying on this exemption, evaluate using a maintained Unicode emoji data source and version-pinned conformance tests. Include benign emoji sequences, malformed/incomplete sequences, repeated variation selectors, tag sequences, and invisible-character payloads interleaved with emoji. Measure false positives and false negatives before changing the signal.
+
+## FS-024 — Maintained Confusable Coverage and Real-Traffic Benign Corpus
+
+**Priority:** High  
+**Status:** Future  
+**Related:** CP-002, OI-080, OI-086, OI-087, OI-088
+
+The current matching-view implementation uses a hand-curated 25-entry confusable-folding table and a hand-written 70-item benign corpus authored by Claude. Neither establishes comprehensive confusable coverage nor represents real request traffic.
+
+Future work may evaluate a maintained source such as Unicode Technical Standard #39 for confusable detection, with a version-pinned dependency/data snapshot, clear scope, adversarial tests, and benign false-positive review. In parallel, replace or supplement the synthetic benign corpus with privacy-reviewed real-traffic samples or a carefully designed representative corpus. Any broadened matching must be evaluated for benign matches and policy-action changes before adoption; broader coverage is not automatically safer.
+
 ## FS-020 — Mixed-Script Token Detection
 
 **Priority:** Medium  
