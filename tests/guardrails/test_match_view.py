@@ -191,7 +191,7 @@ def test_matchviews_rejects_non_string_fields():
     ("invisible run", "\u200b" * 20_000),
     ("alternating", "a\t" * 10_000),
     ("apostrophes", "'" * 20_000),
-])
+], ids=["separator-only", "hyphen-run", "invisible-run", "alternating", "apostrophes"])
 def test_large_adversarial_inputs_finish_quickly(name, text):
     started = time.perf_counter()
     build_match_views(text)
@@ -199,7 +199,7 @@ def test_large_adversarial_inputs_finish_quickly(name, text):
     assert time.perf_counter() - started < 2.0, f"{name}: accidental quadratic behaviour?"
 
 
-@pytest.mark.parametrize("text", ["\t" * 20_000, "-" * 20_000, " \r\n" * 6_000])
+@pytest.mark.parametrize("text", ["\t" * 20_000, "-" * 20_000, " \r\n" * 6_000], ids=["tabs", "hyphens", "space-crlf"])
 def test_stage0_handles_a_20000_character_input_made_only_of_separators(text):
     started = time.perf_counter()
     screen_request(text)
