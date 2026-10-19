@@ -184,7 +184,7 @@ Rendering failures currently fail open so execution can continue without feedfor
 ### Remaining
 
 - **Required CI check (operationally open):** the main-branch ruleset must require `pytest (Python 3.11)`. The current ruleset has no `required_status_checks` rule, so a green run is not yet a merge gate. This requires a repository-settings change; it is not completed by the documentation/CODEOWNERS PR.
-- **CP-002 Part A (OI-080/OI-081):** implementation is committed in the separate Part A implementation PR and is under review. Stage 0 derives raw-text matching views while preserving normalization v1 for downstream use; Stage 1 canonicalises policy keywords and matches flat views in addition to v1. `config/constitution.yaml` is unchanged. F-01/F-03/F-05 are closed only for the cases covered by committed tests; F-04/F-06 remain unresolved, and this is **not injection-robust**. OI-080/OI-081 stay open until the implementation PR merges, CI is green, and the required review is complete. Stage 1 changes in `policy/engine.py` require policy-governance/code-owner review.
+- **CP-002 Part A (OI-080/OI-081):** implementation is on `main`. CI passed on merge commit `8d29c147767f71512fbb61af9f5e992385bcad43`: **1,439 passed, 20 xfailed, 1 warning** (run [#39316274092](https://github.com/alaukikk/Constitutional-Runtime/actions/runs/39316274092), Python 3.11). Twenty formerly-xfailed cases now pass (F-01 ×10, F-02 ×7, F-03 ×2, F-05 ×1); 12 legacy xfails and 8 new residual-limit xfails remain, totaling 20 xfailed. OI-080 is partially resolved with F-04 open; F-06 remains the pattern-only limit tracked under OI-082. OI-081 is resolved for tested whitespace, hyphen, and apostrophe handling only. Stage 0 preserves normalization v1 downstream, `config/constitution.yaml` is unchanged, and this is **not injection-robust**. Stage 1 changes in `policy/engine.py` remain subject to policy-governance/code-owner review.
 - **OI-084 application-log exposure review:** constrain exception logging and ensure request content cannot flow into operational logs before any non-local deployment.
 - **Known residuals:** OI-078 fresh-session reset, OI-083 cross-process audit append safety, OI-085 repeated `REQUIRE_HUMAN` resubmission/risk charging, and CP-002 carry-overs OI-086–OI-090 remain tracked. OI-086/OI-087/OI-089 are provisional defaults; OI-088 is an accepted defect/limit, and OI-090 records the downstream v1-text limitation. The Stage 0/1 execution-scope guard is in `OPEN_ENDS.md`.
 
@@ -200,6 +200,18 @@ Rendering failures currently fail open so execution can continue without feedfor
 
 ## Sprints 7–8 — The actual experiment
 
+This is where the capstone's central claims get tested, using the evaluation framework in `RESEARCH_TRACEABILITY.md`.
+
+1. **Build the golden test set** properly — the working set accumulated informally across Sprints 2–6, cleaned up and expanded.
+
+1. **Build the golden test set** properly — the working set accumulated informally across Sprints 2–6, cleaned up and expanded.
+2. **Run `cost/breakeven.py` for real** against accumulated usage data — answer the central research question: at what workload characteristics does the runtime produce net savings after its own overhead?
+3. **Full-team red-team session** — adversarial inputs against the whole pipeline; sanity-check cost numbers; confirm escalation fires correctly under real (not synthetic) conditions.
+4. **Comparative evaluation** — constitutional runtime vs. "always call the LLM directly" baseline, across all five evaluation dimensions (resource efficiency, decision quality, constitutional compliance, human agency, runtime overhead).
+5. **Shadow-mode validation** — log what the runtime *would* have chosen on real traffic without acting on it, before treating it as load-bearing.
+
+**This is the deliverable that proves the thesis**, not just "the code runs."
+
 ### Provisional defaults in force
 
 Copy/update this table in the Sprint 7–8 report using the live OI-086–OI-090 rows in `OPEN_ENDS.md`. This table records assumptions and limitations; it is not evidence that a property holds. OI-088 is included so the known control-character defect is not silently dropped, but it is explicitly **not** a Provisional default.
@@ -211,16 +223,6 @@ Copy/update this table in the Sprint 7–8 report using the live OI-086–OI-090
 | OI-088 | No provisional default; known control-character separator defect remains an accepted limit. | Before any separator-robustness claim; reopen Stage 0 only under the evidence guard. | To be recorded if relevant evidence appears. | Still open |
 | OI-089 | Accept the pre-existing pasted-log false positive as a pattern-only Stage 0 limitation. | Frequency of legitimate logs/transcripts blocked solely by `nested_instruction_marker`. | To be recorded during Sprints 7–8. | Still open |
 | OI-090 | Keep v1 text downstream; do not draft CP-003 now. | Red-team/shadow-mode evidence that obfuscation reaching classifier/model changes an outcome. | To be recorded during Sprints 7–8; report must distinguish gate-evaluated text from model/classifier input. | Still open |
-
-This is where the capstone's central claims get tested, using the evaluation framework in `RESEARCH_TRACEABILITY.md`.
-
-1. **Build the golden test set** properly — the working set accumulated informally across Sprints 2–6, cleaned up and expanded.
-2. **Run `cost/breakeven.py` for real** against accumulated usage data — answer the central research question: at what workload characteristics does the runtime produce net savings after its own overhead?
-3. **Full-team red-team session** — adversarial inputs against the whole pipeline; sanity-check cost numbers; confirm escalation fires correctly under real (not synthetic) conditions.
-4. **Comparative evaluation** — constitutional runtime vs. "always call the LLM directly" baseline, across all five evaluation dimensions (resource efficiency, decision quality, constitutional compliance, human agency, runtime overhead).
-5. **Shadow-mode validation** — log what the runtime *would* have chosen on real traffic without acting on it, before treating it as load-bearing.
-
-**This is the deliverable that proves the thesis**, not just "the code runs."
 
 ## Open items
 
