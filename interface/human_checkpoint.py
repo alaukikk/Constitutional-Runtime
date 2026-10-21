@@ -1,4 +1,5 @@
 
+
 """
 interface/human_checkpoint.py -- the human confirmation gate for REQUIRE_HUMAN.
 
@@ -47,6 +48,7 @@ import hashlib
 import hmac
 import json
 import logging
+from audit.safe_exc import log_exception
 import math
 import numbers
 import secrets
@@ -136,7 +138,7 @@ class CheckpointManager:
         try:
             return self._verify_and_consume(token, session_id, text, rule_ids)
         except Exception:
-            log.exception("checkpoint verification errored; treating as NOT confirmed")
+            log_exception(log, "checkpoint verification errored; treating as NOT confirmed")
             return Confirmation(False, "verification_error")
 
     def _verify_and_consume(self, token, session_id, text, rule_ids) -> Confirmation:

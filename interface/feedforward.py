@@ -1,4 +1,5 @@
 
+
 """
 interface/feedforward.py -- Stage 4 feedforward.
 
@@ -52,6 +53,7 @@ Decisions (kept inside the frozen Stage 4 spec; no structural change):
 from __future__ import annotations
 
 import logging
+from audit.safe_exc import log_exception
 import math
 import numbers
 from dataclasses import dataclass
@@ -134,7 +136,7 @@ def evaluate_gate(plan: RoutingPlan, high_cost_wh: float = HIGH_COST_WH,
                            f"reaches the ${usd_limit:g} limit")
         return Gate(bool(reasons), tuple(reasons))
     except Exception:
-        log.exception("cost gate evaluation failed; failing closed")
+        log_exception(log, "cost gate evaluation failed; failing closed")
         return Gate(True, ("the cost of this request could not be estimated",))
 
 
@@ -178,7 +180,7 @@ def safe_preview(plan: RoutingPlan) -> Optional[str]:
     try:
         return preview_text(plan)
     except Exception:
-        log.exception("feedforward preview failed; proceeding without it")
+        log_exception(log, "feedforward preview failed; proceeding without it")
         return None
 
 
@@ -186,7 +188,7 @@ def safe_outcome(plan: RoutingPlan, tier_used: MethodTier) -> Optional[str]:
     try:
         return outcome_text(plan, tier_used)
     except Exception:
-        log.exception("feedforward outcome failed; proceeding without it")
+        log_exception(log, "feedforward outcome failed; proceeding without it")
         return None
 
 
@@ -198,7 +200,7 @@ def safe_escalation_outcome(failed_tier: MethodTier, target_tier: MethodTier,
         return escalation_outcome_text(failed_tier, target_tier, model_name,
                                        est_energy_wh, est_dollar_cost)
     except Exception:
-        log.exception("feedforward escalation outcome failed; proceeding without it")
+        log_exception(log, "feedforward escalation outcome failed; proceeding without it")
         return None
 
 
@@ -221,5 +223,5 @@ def safe_worst_case_estimate(plan: RoutingPlan) -> Optional[dict]:
     try:
         return worst_case_estimate(plan)
     except Exception:
-        log.exception("could not estimate the withheld route for the audit record")
+        log_exception(log, "could not estimate the withheld route for the audit record")
         return None
