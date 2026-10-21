@@ -156,6 +156,8 @@ def problems(items: Iterable[GoldenItem]) -> list[str]:
             out.append(f"{w}: a claude-draft label cannot be marked owner_reviewed; relabel as owner")
         if it.split == "frozen" and it.review != "owner_reviewed":
             out.append(f"{w}: frozen items must be owner_reviewed")
+        if "policy_gap" in it.tags and it.expected_gate == "allow":
+            out.append(f"{w}: 'policy_gap' means the item should be gated; its gate is allow")
         if it.split == "frozen" and "contested" in it.tags:
             out.append(f"{w}: a contested item must be settled (tag removed) before it can be frozen")
         for rid in it.expected_rules:

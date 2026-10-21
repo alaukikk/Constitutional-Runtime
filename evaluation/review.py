@@ -14,6 +14,9 @@ Design choices, on purpose:
     the owner adopted the label. The draft origin stays in ``origin``.
   * A ``contested`` item cannot be agreed or changed unless ``contested_resolved`` is ``yes``;
     that removes the tag. Settling a policy question is the owner's call and is never implied.
+  * A ``policy_gap`` item whose gate the owner sets to ``allow`` loses the ``policy_gap`` tag: the
+    owner has decided no gate is wanted, so it is no longer a recall gap (golden_set.py rejects
+    the contradictory combination).
   * The text column shows non-printable and non-ASCII characters as \\uXXXX escapes so invisible
     characters are visible; ``apply`` never edits an item's text.
   * ``apply`` re-runs every integrity rule on the result and refuses to output a malformed set.
@@ -116,6 +119,8 @@ def check_decisions(items: list[gs.GoldenItem], rows: list[dict]):
             if not changes:
                 errors.append(f"{rid}: decision=change but no new_* value given (use agree to keep the labels)")
                 continue
+        if "policy_gap" in tags and changes.get("expected_gate", it.expected_gate) == "allow":
+            tags.remove("policy_gap")          # the owner settled that no gate is wanted: not a gap
         new[rid] = dataclasses.replace(it, tags=tuple(tags), labeler="owner", review="owner_reviewed", **changes)
         counts[dec] += 1
     missing = sorted(set(by_id) - seen)
