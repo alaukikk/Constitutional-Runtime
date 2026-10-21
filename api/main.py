@@ -110,6 +110,7 @@ before any work is done or any single-use confirmation token is consumed.
 """
 from __future__ import annotations
 import logging
+from audit.safe_exc import log_exception
 import time
 from dataclasses import asdict, dataclass, replace
 from collections.abc import Mapping
@@ -503,7 +504,7 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
         except Exception:
             attempt_ms = _ms(started)
             exec_ms += attempt_ms
-            log.exception("Stage 5 execution error on tier %s", tier.value)
+            log_exception(log, "Stage 5 execution error on tier %s", tier.value)
             exec_error = True
             break
         attempt_ms = _ms(started)
@@ -553,7 +554,7 @@ def process_request(text: str, session_id: str | None = None, confirmation_token
             try:
                 repaired_text = _run_tier(repair.target_tier, normalized, repair.target_model)
             except Exception:
-                log.exception("Stage 5 execution error on repair tier %s", repair.target_tier.value)
+                log_exception(log, "Stage 5 execution error on repair tier %s", repair.target_tier.value)
             repair_ms = _ms(started)
             exec_ms += repair_ms
             escalations.append({"kind": "repair", "from_tier": tier_used.value,
