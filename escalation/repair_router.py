@@ -1,4 +1,5 @@
 
+
 """
 escalation/repair_router.py -- cross-cutting repair decision (ARCHITECTURE.md
 "Escalation & repair"; Stage 5 #7, Stage 6 #10).
@@ -46,6 +47,7 @@ owner, easy to change via the constants below):
 from __future__ import annotations
 
 import logging
+from audit.safe_exc import log_exception
 import math
 import numbers
 from dataclasses import dataclass
@@ -161,7 +163,7 @@ def decide_repair(
     except Exception:
         # N1: "if the cap check errors, do not escalate" -- and the same safe
         # direction for any other error. Loud in the log, never silent.
-        log.exception("repair router errored; withholding rather than escalating")
+        log_exception(log, "repair router errored; withholding rather than escalating")
         return _withhold("repair_router_error",
                          "an internal error occurred while deciding on repair; not escalating")
 
