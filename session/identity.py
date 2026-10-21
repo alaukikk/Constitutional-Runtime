@@ -1,4 +1,5 @@
 
+
 """
 session/identity.py -- server-issued session identity (OI-013, Sprint 6).
 
@@ -45,6 +46,7 @@ import base64
 import hashlib
 import hmac
 import logging
+from audit.safe_exc import log_exception
 import secrets
 import threading
 import time
@@ -160,7 +162,7 @@ class SessionIdentity:
             token = f"{body}.{self._sign(body)}"
             return IssuanceResult(True, IssuedSession(token, sid, issued_at + self._ttl))
         except Exception:
-            log.exception("session issuance failed; refusing")
+            log_exception(log, "session issuance failed; refusing")
             return IssuanceResult(False, reason="issuance_error")
 
     def _purge_expired(self, now: float) -> None:
@@ -191,5 +193,5 @@ class SessionIdentity:
                 return VerifyResult(False, reason=EXPIRED)
             return VerifyResult(True, session_id=sid)
         except Exception:
-            log.exception("session verification failed; rejecting")
+            log_exception(log, "session verification failed; rejecting")
             return VerifyResult(False, reason=INVALID)

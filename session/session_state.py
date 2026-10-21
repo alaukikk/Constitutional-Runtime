@@ -1,4 +1,5 @@
 
+
 """Stage 2 — Session Context.
 
 Tracks cumulative risk / cost / turn count per session and derives extra
@@ -14,6 +15,7 @@ No AI, no judgment calls: running totals and thresholds only.
 from __future__ import annotations
 
 import logging
+from audit.safe_exc import log_exception
 import math
 import threading
 from dataclasses import dataclass, field, replace
@@ -145,7 +147,7 @@ class SessionManager:
                 state = self._store.get(sid)
             except Exception:
                 # Spec: fail open on read errors (fresh session) but log it.
-                log.exception("session read failed for %s; using fresh state", sid)
+                log_exception(log, "session read failed for %s; using fresh state", sid)
                 state, read_ok = None, False
             if state is None:
                 state = SessionState(session_id=sid)
@@ -179,7 +181,7 @@ class SessionManager:
                 try:
                     self._store.put(state)
                 except Exception:
-                    log.exception("session write failed for %s", sid)
+                    log_exception(log, "session write failed for %s", sid)
             return replace(state), constraints
 
     def _derive(self, s: SessionState) -> SessionConstraints:
