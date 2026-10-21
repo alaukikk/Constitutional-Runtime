@@ -1,4 +1,5 @@
 
+
 """
 validation/validator.py — Stage 6 Output Validator.
 
@@ -42,6 +43,7 @@ import logging
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
+from audit.safe_exc import describe_exception
 from policy.schemas import MethodTier, PolicyFlag
 from validation.non_llm_checks import CheckResult, run_non_llm_checks
 
@@ -98,11 +100,11 @@ def validate_output(
             high_stakes = True  # cannot even decide stakes -> fail closed
         if high_stakes:
             logger.warning("validator errored (%s) on tier %s; fail-closed, output withheld",
-                           exc, getattr(tier, "value", tier))
+                           describe_exception(exc), getattr(tier, "value", tier))   # OI-084
             return ValidationResult(False, "validator_error_failed_closed",
                                     CHECK_TYPE_NON_LLM, (), validator_errored=True)
         logger.warning("validator errored (%s) on tier %s; no fail-closed policy flag, "
                        "FAILING OPEN: output released unvalidated",
-                       exc, getattr(tier, "value", tier))
+                       describe_exception(exc), getattr(tier, "value", tier))
         return ValidationResult(True, "validator_error_failed_open", CHECK_TYPE_NON_LLM, (),
                                 validator_errored=True, failed_open=True)
