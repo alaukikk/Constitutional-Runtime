@@ -1,5 +1,6 @@
 
 
+
 """
 Stage 1 — Constitutional Policy Gate.
 Runs on every path, including the deterministic/non-AI branch.
@@ -29,6 +30,7 @@ import logging
 from pathlib import Path
 import yaml
 
+from audit.safe_exc import describe_exception, reason_for
 from guardrails.match_view import MatchViews, canon_keyword
 from policy.schemas import PolicyFlag, PolicyAction, RiskCategory
 
@@ -112,7 +114,7 @@ class PolicyEngine:
                 if self._fail_closed_for(rule_id):
                     logger.warning(
                         "policy rule '%s' errored during evaluation (%s); fail-closed, escalating to BLOCK",
-                        rule_id, e,
+                        rule_id, describe_exception(e),    # never str(e): OI-084
                     )
                     # The error is usually in keyword matching, not the category
                     # field, so preserve the rule's real risk_category where we
@@ -132,7 +134,7 @@ class PolicyEngine:
                         rule_id=rule_id,
                         risk_category=escalated_category,
                         action=PolicyAction.BLOCK,
-                        reason=f"rule '{rule_id}' errored during evaluation ({e}); failed closed",
+                        reason=f"rule '{rule_id}' errored during evaluation ({reason_for(e)}); failed closed",
                     ))
                 else:
                     # Fail-open: request proceeds without this rule's flag, but
@@ -140,7 +142,7 @@ class PolicyEngine:
                     logger.warning(
                         "policy rule '%s' errored during evaluation (%s); fail-open, "
                         "request proceeds WITHOUT this rule's flag this turn",
-                        rule_id, e,
+                        rule_id, describe_exception(e),
                     )
 
         most_severe = PolicyAction.ALLOW
