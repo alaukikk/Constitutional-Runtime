@@ -1,4 +1,5 @@
 
+
 """
 Stage 3 -- Necessity & Cost Router (Sprint 4).
 
@@ -45,6 +46,7 @@ on purpose: they are programmer errors, not request-time failures.
 from __future__ import annotations
 
 import logging
+from audit.safe_exc import log_exception
 import math
 import numbers
 from dataclasses import dataclass
@@ -171,7 +173,7 @@ def plan_request(
         if not isinstance(cls, RequestClassification):
             raise TypeError(f"classifier returned {type(cls).__name__}, not RequestClassification")
     except Exception:
-        log.exception("classifier failed; routing conservatively")
+        log_exception(log, "classifier failed; routing conservatively")
         cls = RequestClassification(category=RequestType.UNKNOWN, confidence=0.0,
                                     raw_text=request_text if isinstance(request_text, str) else "")
         failed = True
