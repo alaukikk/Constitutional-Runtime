@@ -1,4 +1,5 @@
 
+
 """
 tiers/small_classifier.py -- Stage 3/5 small-classifier tier (Sprint 4).
 
@@ -54,6 +55,7 @@ Safety/robustness:
 from __future__ import annotations
 
 import logging
+from audit.safe_exc import log_exception
 import math
 import numbers
 import re
@@ -191,5 +193,5 @@ def try_small_classifier(request_text: str) -> Optional[str]:
         prediction = get_default_classifier().predict(message)
         return None if prediction is None else prediction.label
     except Exception:
-        log.exception("small classifier failed; abstaining so the ladder escalates")
+        log_exception(log, "small classifier failed; abstaining so the ladder escalates")
         return None
