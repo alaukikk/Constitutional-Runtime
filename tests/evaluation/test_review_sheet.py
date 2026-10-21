@@ -59,7 +59,9 @@ def test_change_applies_new_values_and_validates():
     it = next(i for i in ITEMS if i.id == "G-060")                 # policy gap, require_human with no rule
     ok = {"decision": "change", "contested_resolved": "yes", "new_gate": "allow"}
     out, _ = rv.apply_decisions(ITEMS, rows_for(**{it.id: ok}))
-    assert next(i for i in out if i.id == it.id).expected_gate == "allow"
+    settled = next(i for i in out if i.id == it.id)
+    assert settled.expected_gate == "allow"
+    assert "policy_gap" not in settled.tags and "contested" not in settled.tags   # no longer a recall gap
     ok2 = {"decision": "change", "contested_resolved": "yes", "new_rules": "HAC-001"}
     out2, _ = rv.apply_decisions(ITEMS, rows_for(**{it.id: ok2}))
     assert next(i for i in out2 if i.id == it.id).expected_rules == ("HAC-001",)
