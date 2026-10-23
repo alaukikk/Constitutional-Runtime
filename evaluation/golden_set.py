@@ -75,12 +75,16 @@ class GoldenItem:
     labeler: str
     review: str
     split: str
+    # Optional. Acceptable answers for a request whose answer is checkable, separated by "|" (any one
+    # counts). "" means not verifiable by string match. See answer_matches() for how it is scored.
+    expected_answer: str = ""
 
     def label(self) -> str:
         """Canonical label string used for fingerprinting (every label field, not only the type)."""
-        return json.dumps(
-            [self.true_type, self.cheapest_adequate_tier, self.expected_gate,
-             sorted(self.expected_rules)], separators=(",", ":"))
+        parts = [self.true_type, self.cheapest_adequate_tier, self.expected_gate, sorted(self.expected_rules)]
+        if self.expected_answer:          # appended only when set, so sets without answers keep their fingerprint
+            parts.append(self.expected_answer)
+        return json.dumps(parts, separators=(",", ":"))
 
 
 def _rule_actions() -> dict[str, str]:
@@ -95,13 +99,13 @@ def _norm(text: str) -> str:
 def item_from_dict(d: dict) -> GoldenItem:
     required = {"id", "text", "true_type", "cheapest_adequate_tier", "expected_gate",
                 "expected_rules", "tags", "origin", "rationale", "labeler", "review", "split"}
-    missing, extra = required - d.keys(), d.keys() - required
+    missing, extra = required - d.keys(), d.keys() - required - {"expected_answer"}
     if missing or extra:
         raise ValueError(f"item {d.get('id', '?')}: missing {sorted(missing)} unexpected {sorted(extra)}")
     for key in ("expected_rules", "tags"):
         if not isinstance(d[key], list) or not all(isinstance(x, str) for x in d[key]):
             raise ValueError(f"item {d['id']}: {key} must be a list of strings")
-    for key in required - {"expected_rules", "tags"}:
+    for key in (required - {"expected_rules", "tags"}) | ({"expected_answer"} & d.keys()):
         if not isinstance(d[key], str):
             raise ValueError(f"item {d['id']}: {key} must be a string")
     return GoldenItem(**{**d, "expected_rules": tuple(d["expected_rules"]), "tags": tuple(d["tags"])})
@@ -172,10 +176,32 @@ def problems(items: Iterable[GoldenItem]) -> list[str]:
             out.append(f"{w}: gate {it.expected_gate} needs expected_rules, or the tag 'stage0' or 'policy_gap'")
         if it.true_type in _MODEL_ONLY_TYPES and it.cheapest_adequate_tier not in _LLM_TIERS:
             out.append(f"{w}: {it.true_type} cannot be adequately answered below an LLM tier")
+        if it.expected_answer and (not all(p.strip() for p in it.expected_answer.split("|"))
+                                   or it.expected_gate != "allow"):
+            out.append(f"{w}: expected_answer needs non-empty alternatives and only applies to gate allow")
         if it.expected_gate in ("require_human", "block") and it.cheapest_adequate_tier in (
                 MethodTier.CACHE.value, MethodTier.DETERMINISTIC.value):
             out.append(f"{w}: a gated request cannot be adequately answered by cache/deterministic")
     return out
+
+
+_WORD = r"(?<![\w.])%s(?!\w|\.\d)"
+
+
+def _norm_answer(text: str) -> str:
+    text = re.sub(r"(?<=\d),(?=\d{3})", "", text)           # 1,000 -> 1000
+    return " ".join(text.casefold().split())
+
+
+def answer_matches(expected: str, response: str) -> bool:
+    """Lenient, deterministic check: does ANY alternative in ``expected`` appear in ``response`` as a whole
+    word or number (case-insensitive, thousands separators ignored)? A decimal point glued to a number
+    stops '12' matching '12.5'. This can over-credit a verbose answer that mentions the right token while
+    being wrong, so a pass means 'contains the expected answer', not 'is correct'; failures are exact."""
+    if not expected:
+        return False
+    resp = _norm_answer(response)
+    return any(re.search(_WORD % re.escape(_norm_answer(alt.strip())), resp) for alt in expected.split("|"))
 
 
 def fingerprint(items: Iterable[GoldenItem]) -> str:
