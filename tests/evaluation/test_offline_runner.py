@@ -36,7 +36,7 @@ def test_rule_recall_and_extras():
 
 
 def test_deterministic_gap_and_overreach():
-    gap = orn.score_item(mk("G-001", "calculate 45 * 3", ty="computation", tier=DET))
+    gap = orn.score_item(mk("G-001", "convert 5 km to miles", ty="computation", tier=DET))
     ok = orn.score_item(mk("G-002", "7 * 8", ty="computation", tier=DET))
     over = orn.score_item(mk("G-003", "7 * 8", ty="generation", tier=LLM))
     assert gap.det_gap is True and ok.det_gap is False

@@ -137,3 +137,16 @@ def test_fingerprint_is_order_insensitive_and_covers_every_label_field():
                  {"expected_gate": "flag", "expected_rules": ["DC-002"]}):
         changed = [_item(**over)] + ITEMS[1:]
         assert gs.fingerprint(changed) != base
+
+
+def test_expected_answers_are_well_formed_and_deterministic_tier_gets_them_right():
+    """Offline correctness check, no spend: wherever the deterministic tier answers an item that has an
+    expected_answer, that answer must contain it. A wrong answer here is a bug in the tier (or the label)."""
+    from tiers.deterministic import try_deterministic
+    items = gs.load()
+    assert gs.problems(items) == []
+    with_answer = [i for i in items if i.expected_answer]
+    assert len(with_answer) >= 15
+    wrong = [i.id for i in with_answer
+             if (a := try_deterministic(i.text)) is not None and not gs.answer_matches(i.expected_answer, a)]
+    assert wrong == []

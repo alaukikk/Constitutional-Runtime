@@ -1,4 +1,5 @@
 
+import dataclasses
 import json
 import sys
 from unittest.mock import MagicMock
@@ -54,6 +55,10 @@ def test_run_compares_runtime_to_baseline_on_answered_items_only():
     t = rep["tokens"]
     assert t["measured"] and (t["runtime_in"], t["runtime_out"]) == (40, 60) and (t["baseline_in"], t["baseline_out"]) == (200, 200)
     assert t["saving_vs_baseline"] == 0.75                        # 1 - 100/400
+    d = rep["tokens"]["decomposition"]
+    assert d["avoided_calls"] == 1 and d["avoided_call_tokens"] == 200 and d["avoided_share_of_baseline"] == 0.5
+    assert d["llm_routed"] == {"n": 1, "runtime_tokens": 100, "baseline_tokens": 200, "difference": -100,
+                               "same_underlying_model": False}      # runtime alias stub-medium vs baseline stub-large
     assert rep["gate_agreement"]["disagreements"] == ["G-069"]    # expected allow, runtime blocked
     assert rep["answered"]["non_llm_share"] == 0.5 and rep["baseline_alias"] == "stub-large"
 
@@ -76,7 +81,7 @@ def test_report_carries_the_caveats_and_baseline():
     rep = e2e.run(ITEMS[:2], lambda it: obs(), mk_gateway(), "stub-large")
     md = e2e.render_markdown(rep)
     assert "DIAGNOSTIC ONLY" in md and "baseline alias `stub-large`" in md
-    assert "Not measured: answer quality, cache tier, energy or dollars" in md
+    assert "Not measured: free-text answer quality" in md
 
 
 def test_preflight_requires_key_and_a_mapping_for_every_catalog_model_and_the_baseline():
@@ -157,3 +162,75 @@ def test_scratch_environment_restores_env_and_cache(web_layer, tmp_path):
     with e2e.scratch_environment(tmp_path / "s"):
         assert os.environ[ENV_KEY].startswith("e2e-scratch-")
     assert os.environ[ENV_KEY] == "keep-me" and cl._client is old
+
+
+def test_pacing_wait_is_not_counted_as_call_latency():
+    ticks = iter([100.0, 100.0, 100.25,      # call 1: pace check, start, end
+                  101.0, 101.0, 101.25])     # call 2: pace check (5 s wait), start, end
+    cfg = gw.GatewayConfig(backend="anthropic", api_key=KEY, model_map=MAP, min_interval_s=6.0)
+
+    def transport(url, headers, body, timeout):
+        return 200, json.dumps({"content": [{"type": "text", "text": "a"}],
+                                "usage": {"input_tokens": 1, "output_tokens": 1}}).encode()
+    g = e2e.RecordingGateway(cfg, transport=transport, clock=lambda: next(ticks), sleep=lambda s: None)
+    g.complete("x", "stub-small")
+    g.complete("y", "stub-small")
+    first, second = g.drain()
+    assert (first.latency_ms, first.paced_ms) == (250.0, 0.0)
+    assert (second.latency_ms, second.paced_ms) == (250.0, 5000.0)      # the 5 s wait is reported apart
+
+
+def test_unpaced_wall_time_subtracts_the_waits():
+    import time
+    calls = (llm_call(), e2e.LLMCall("stub-small", True, "", 1, 1, 10.0, 60_000.0))
+    t0 = time.perf_counter() - 61.0                                     # 61 s elapsed, 60 s of it was pacing
+    assert 900.0 <= e2e._unpaced_ms(t0, calls) <= 1500.0
+
+
+def test_progress_lines_are_emitted_per_item_and_cli_keeps_stdout_clean(capsys):
+    lines = []
+    e2e.run(ITEMS[:3], lambda it: obs(), mk_gateway(), "stub-large", progress=lines.append)
+    assert len(lines) == 3 and lines[0].startswith("[1/3] G-001 answered_non_llm") and "baseline=ok" in lines[0]
+    e2e.main(["--baseline-alias", "stub-large", "--limit", "2"], observe_factory=lambda g_: (lambda it: obs()),
+             gateway=e2e.RecordingGateway(gw.GatewayConfig()))
+    cap = capsys.readouterr()
+    assert "[1/2]" in cap.err and "[1/2]" not in cap.out and cap.out.startswith("# Golden set")
+
+
+def test_same_underlying_model_is_reported_as_run_to_run_variation():
+    items = [i for i in ITEMS if i.id in ("G-001", "G-007")]
+    script = {"G-001": obs("deterministic"), "G-007": obs("llm_low_reasoning", calls=[llm_call(i=40, o=60)])}
+    # same provider model behind both aliases -> the LLM-routed difference is not a saving
+    cfg = gw.GatewayConfig(backend="anthropic", api_key=KEY, model_map={a: "m1" for a in MAP})
+    g3 = e2e.RecordingGateway(cfg, transport=lambda u, h, b, t: (200, json.dumps(
+        {"content": [{"type": "text", "text": "x"}], "usage": {"input_tokens": 100, "output_tokens": 100}}).encode()))
+    rep3 = e2e.run(items, lambda it: script[it.id], g3, "stub-large")
+    assert rep3["tokens"]["decomposition"]["llm_routed"]["same_underlying_model"] is True
+    assert "run-to-run variation, not a saving" in e2e.render_markdown(rep3)
+
+
+def test_answer_matches_is_whole_token_and_alternative_aware():
+    am = gs.answer_matches
+    assert am("12", "The answer is 12.") and not am("12", "It is 12.5") and not am("12", "112")
+    assert am("100|212", "212 degrees F") and am("Tokyo", "It's tokyo!") and am("1000", "about 1,000")
+    assert not am("", "anything") and not am("7", "seven")
+
+
+def test_correctness_scores_cheap_and_llm_answers_separately():
+    items = [dataclasses.replace(i, expected_answer=a) for i, a in
+             ((next(x for x in ITEMS if x.id == "G-001"), "Tokyo"), (next(x for x in ITEMS if x.id == "G-007"), "ans"))]
+    script = {"G-001": e2e.Observed("deterministic", False, False, None, None, (), 1.0, "", "Paris"),     # wrong cheap answer
+              "G-007": e2e.Observed("llm_low_reasoning", False, False, None, None, (llm_call(i=1, o=1),), 1.0, "", "ans ok")}
+    rep = e2e.run(items, lambda it: script[it.id], mk_gateway(), "stub-large")
+    c = rep["correctness"]
+    assert c["scored"] == 2
+    assert c["non_llm"]["n"] == 1 and c["non_llm"]["runtime_correct"] == 0 and c["non_llm"]["wrong_ids"] == ["G-001"]
+    assert c["llm"]["runtime_correct"] == 1 and c["llm"]["baseline_correct"] == 1       # baseline gateway answers "ans"
+    md = e2e.render_markdown(rep)
+    assert "WRONG ['G-001']" in md and "## Correctness" in md
+
+
+def test_unscored_items_do_not_appear_in_correctness():
+    item = dataclasses.replace(ITEMS[0], expected_answer="")
+    rep = e2e.run([item], lambda it: obs("deterministic"), mk_gateway(), "stub-large")
+    assert rep["correctness"]["scored"] == 0 and "## Correctness" not in e2e.render_markdown(rep)
