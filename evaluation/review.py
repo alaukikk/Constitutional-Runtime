@@ -34,7 +34,7 @@ from typing import Iterable, Optional
 from evaluation import golden_set as gs
 
 COLUMNS = ["id", "text_display", "tags", "rationale", "true_type", "cheapest_adequate_tier",
-           "expected_gate", "expected_rules", "decision", "new_true_type", "new_tier", "new_gate",
+           "expected_gate", "expected_rules", "expected_answer", "decision", "new_true_type", "new_tier", "new_gate",
            "new_rules", "contested_resolved", "note"]
 DECISIONS = {"", "skip", "agree", "change"}
 
@@ -68,7 +68,8 @@ def export_sheet(items: Iterable[gs.GoldenItem], path: Path) -> int:
             w.writerow({"id": it.id, "text_display": display(it.text), "tags": ";".join(it.tags),
                         "rationale": it.rationale, "true_type": it.true_type,
                         "cheapest_adequate_tier": it.cheapest_adequate_tier,
-                        "expected_gate": it.expected_gate, "expected_rules": ";".join(it.expected_rules)})
+                        "expected_gate": it.expected_gate, "expected_rules": ";".join(it.expected_rules),
+                        "expected_answer": it.expected_answer})
             n += 1
     return n
 

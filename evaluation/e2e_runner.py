@@ -20,8 +20,9 @@ What this DOES report: outcome per item (answered by a non-LLM rung / by the LLM
 needs confirmation / error), agreement with the golden expected gate, provider-reported token
 counts and wall latency for runtime vs baseline on the answered items.
 What it does NOT report, on purpose:
-  * answer QUALITY (no judge, no expected answers); a cheap tier's answer is not checked, so a
-    "saving" is a saving in calls and tokens, not proof the answer was as good;
+  * free-text answer QUALITY (no judge). Only items carrying an expected_answer are scored, by
+    containment (golden_set.answer_matches); everything else is unchecked, so a "saving" there is a
+    saving in calls and tokens, not proof the answer was as good;
   * the cache tier (cold in-memory cache, stateless run);
   * energy or dollars (catalog cost/energy inputs are placeholders, OI-005; tokens only);
   * anything about confirmation outcomes: a REQUIRE_HUMAN request stops at "needs confirmation".
@@ -40,7 +41,7 @@ import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, Mapping, Optional
 
 from evaluation import golden_set as gs
 from llm.gateway import (GatewayConfig, GatewayConfigError, LLMGateway, LLMGatewayError, STUB_MODEL,
@@ -59,7 +60,8 @@ class LLMCall:
     error_code: str
     input_tokens: Optional[int]
     output_tokens: Optional[int]
-    latency_ms: float
+    latency_ms: float                    # the call itself; pacing waits are NOT included
+    paced_ms: float = 0.0                # time spent waiting for the pacing interval before the call
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,7 @@ class Observed:
     llm_calls: tuple[LLMCall, ...]
     wall_ms: float
     error: str = ""                      # exception CLASS name only, never a message
+    answer: str = ""                     # response text; used ONLY to score expected_answer, never stored in the report
 
 
 def outcome_of(o: Observed) -> str:
@@ -93,15 +96,20 @@ class RecordingGateway(LLMGateway):
 
     def complete(self, request_text: str, model_name: str = STUB_MODEL) -> str:
         t0 = time.perf_counter()
+        self.last_wait_s = 0.0
         try:
             out = super().complete(request_text, model_name)
         except LLMGatewayError as exc:
+            paced = round(self.last_wait_s * 1000, 3)
             self._calls.append(LLMCall(model_name, False, exc.code, None, None,
-                                       round((time.perf_counter() - t0) * 1000, 3)))
+                                       max(0.0, round((time.perf_counter() - t0) * 1000 - paced, 3)), paced))
             raise
-        m = self.last_measurement if self.config.backend == "anthropic" else None
+        paced = round(self.last_wait_s * 1000, 3)
+        m = self.last_measurement if self.config.backend != "stub" else None
+        # A real call's latency is the gateway's own measurement (it starts after the pacing wait).
+        latency = m.latency_ms if m else max(0.0, round((time.perf_counter() - t0) * 1000 - paced, 3))
         self._calls.append(LLMCall(model_name, True, "", m.input_tokens if m else None,
-                                   m.output_tokens if m else None, round((time.perf_counter() - t0) * 1000, 3)))
+                                   m.output_tokens if m else None, latency, paced))
         return out
 
     def drain(self) -> tuple[LLMCall, ...]:
@@ -153,6 +161,12 @@ def scratch_environment(workdir: Optional[Path] = None):
             own.cleanup()
 
 
+def _unpaced_ms(t0: float, calls: tuple) -> float:
+    """Wall time since t0 minus the time spent waiting for the pacing interval (a rate-limit courtesy,
+    not part of what the pipeline costs)."""
+    return max(0.0, round((time.perf_counter() - t0) * 1000 - sum(c.paced_ms for c in calls), 3))
+
+
 def real_pipeline(gateway: RecordingGateway) -> Callable[[gs.GoldenItem], Observed]:
     """Adapter over api.main.process_request. Call inside scratch_environment()."""
     import api.main as main
@@ -165,27 +179,31 @@ def real_pipeline(gateway: RecordingGateway) -> Callable[[gs.GoldenItem], Observ
         try:
             res = main.process_request(item.text, session_id=f"e2e-{item.id}")
         except Exception as exc:
-            return Observed("error", False, False, None, None, gateway.drain(),
-                            round((time.perf_counter() - t0) * 1000, 3), error=type(exc).__name__)
+            calls = gateway.drain()
+            return Observed("error", False, False, None, None, calls, _unpaced_ms(t0, calls),
+                            error=type(exc).__name__)
+        calls = gateway.drain()
         return Observed(res.tier_used, bool(res.blocked), bool(res.needs_confirmation), res.block_reason,
-                        res.validation_status, gateway.drain(), round((time.perf_counter() - t0) * 1000, 3))
+                        res.validation_status, calls, _unpaced_ms(t0, calls), answer=res.response or "")
 
     return observe
 
 
 # -- scoring ------------------------------------------------------------------------------------
 def run(items: Iterable[gs.GoldenItem], observe: Callable[[gs.GoldenItem], Observed],
-        gateway: RecordingGateway, baseline_alias: str) -> dict:
+        gateway: RecordingGateway, baseline_alias: str,
+        progress: Optional[Callable[[str], None]] = None) -> dict:
     items = list(items)
     rows = []
-    for it in items:
+    for n, it in enumerate(items, 1):
         o = observe(it)
         oc = outcome_of(o)
         base: Optional[LLMCall] = None
+        base_text = ""
         if oc in ("answered_non_llm", "answered_llm"):
             gateway.drain()
             try:
-                gateway.complete(it.text, baseline_alias)
+                base_text = gateway.complete(it.text, baseline_alias)
             except LLMGatewayError:
                 pass                                            # recorded as a failed baseline call
             calls = gateway.drain()
@@ -194,11 +212,20 @@ def run(items: Iterable[gs.GoldenItem], observe: Callable[[gs.GoldenItem], Obser
                      "tier_used": o.tier_used, "block_reason": o.block_reason, "validation_status": o.validation_status,
                      "error": o.error, "wall_ms": o.wall_ms, "runtime_calls": [asdict(c) for c in o.llm_calls],
                      "baseline_call": asdict(base) if base else None,
-                     "gate_agrees": oc in _EXPECTED_OUTCOME[it.expected_gate]})
-    return summarize(items, rows, baseline_alias, gateway.config.backend)
+                     "gate_agrees": oc in _EXPECTED_OUTCOME[it.expected_gate],
+                     # True/False only for answered items that have an expected_answer; None otherwise.
+                     "runtime_correct": (gs.answer_matches(it.expected_answer, o.answer)
+                                         if it.expected_answer and oc.startswith("answered") else None),
+                     "baseline_correct": (gs.answer_matches(it.expected_answer, base_text)
+                                          if it.expected_answer and base is not None and base.ok else None)})
+        if progress:
+            progress(f"[{n}/{len(items)}] {it.id} {oc} tier={o.tier_used} runtime_llm_calls={len(o.llm_calls)}"
+                     + (f" baseline={'ok' if base and base.ok else 'failed'}" if oc.startswith("answered") else ""))
+    return summarize(items, rows, baseline_alias, gateway.config.backend, gateway.config.model_map)
 
 
-def summarize(items: list[gs.GoldenItem], rows: list[dict], baseline_alias: str, backend: str) -> dict:
+def summarize(items: list[gs.GoldenItem], rows: list[dict], baseline_alias: str, backend: str,
+              model_map: Optional[Mapping[str, str]] = None) -> dict:
     counts = {k: sum(1 for r in rows if r["outcome"] == k) for k in OUTCOMES}
     answered = [r for r in rows if r["outcome"] in ("answered_non_llm", "answered_llm")]
     rt_calls = [c for r in answered for c in r["runtime_calls"]]
@@ -212,6 +239,7 @@ def summarize(items: list[gs.GoldenItem], rows: list[dict], baseline_alias: str,
     b_out = sum(c["output_tokens"] for c in ok_base) if have_tokens else None
     b_tot = (b_in + b_out) if have_tokens else None
     saving = round(1 - (rt_in + rt_out) / b_tot, 4) if have_tokens and b_tot else None
+    decomposition = _decompose(answered, baseline_alias, model_map or {}, have_tokens, b_tot)
     prov = {"items": len(items), "labelers": dict(_count(i.labeler for i in items)),
             "reviews": dict(_count(i.review for i in items)), "splits": dict(_count(i.split for i in items)),
             "fingerprint": gs.fingerprint(items) if items else None}
@@ -226,11 +254,60 @@ def summarize(items: list[gs.GoldenItem], rows: list[dict], baseline_alias: str,
         "llm_calls": {"runtime": len(rt_calls), "runtime_failed": len(rt_calls) - len(ok_rt),
                       "baseline": len(base_calls), "baseline_failed": len(base_calls) - len(ok_base)},
         "tokens": {"measured": have_tokens, "runtime_in": rt_in, "runtime_out": rt_out, "baseline_in": b_in,
-                   "baseline_out": b_out, "saving_vs_baseline": saving},
+                   "baseline_out": b_out, "saving_vs_baseline": saving, "decomposition": decomposition},
+        "correctness": _correctness(rows),
         "latency_ms": {"runtime_total": round(sum(r["wall_ms"] for r in answered), 3),
                        "baseline_total": round(sum(c["latency_ms"] for c in base_calls), 3)},
         "rows": rows,
     }
+
+
+def _correctness(rows: list[dict]) -> dict:
+    """Containment-scored correctness on answered items that have an expected_answer (see
+    golden_set.answer_matches for what a pass means). Split by whether the runtime used an LLM, because
+    the wrong-answer rate of the NON-LLM tiers is the cost of routing cheaply."""
+    scored = [r for r in rows if r.get("runtime_correct") is not None]
+
+    def block(rs: list[dict]) -> dict:
+        b = [r for r in rs if r.get("baseline_correct") is not None]
+        return {"n": len(rs), "runtime_correct": sum(1 for r in rs if r["runtime_correct"]),
+                "wrong_ids": [r["id"] for r in rs if not r["runtime_correct"]],
+                "baseline_n": len(b), "baseline_correct": sum(1 for r in b if r["baseline_correct"]),
+                "baseline_wrong_ids": [r["id"] for r in b if not r["baseline_correct"]]}
+    return {"scored": len(scored),
+            "non_llm": block([r for r in scored if r["outcome"] == "answered_non_llm"]),
+            "llm": block([r for r in scored if r["outcome"] == "answered_llm"])}
+
+
+def _tok(call: dict) -> int:
+    return call["input_tokens"] + call["output_tokens"]
+
+
+def _decompose(answered: list[dict], baseline_alias: str, model_map: Mapping[str, str], have_tokens: bool,
+               baseline_total: Optional[int]) -> Optional[dict]:
+    """Split the token comparison into what routing CAUSED and what is run-to-run variation.
+
+    avoided: requests answered with no LLM call at all. Their cost is exactly what the baseline spent on
+             them, so this is the effect attributable to the runtime.
+    llm_routed: requests the runtime also sent to a model. If the runtime's model and the baseline's are
+             the SAME underlying model, both sides send the same text to the same model, so any
+             difference is sampling variation (reasoning models vary between identical calls), not a
+             saving. If the models differ, the difference mixes model choice with that variation."""
+    if not have_tokens:
+        return None
+    provider = lambda alias: model_map.get(alias, alias)
+    ok_base = lambda r: r["baseline_call"] is not None and r["baseline_call"]["ok"]
+    avoided = [r for r in answered if r["outcome"] == "answered_non_llm" and ok_base(r)]
+    routed = [r for r in answered if r["outcome"] == "answered_llm" and ok_base(r)
+              and r["runtime_calls"] and all(c["ok"] for c in r["runtime_calls"])]
+    avoided_tokens = sum(_tok(r["baseline_call"]) for r in avoided)
+    rt = sum(_tok(c) for r in routed for c in r["runtime_calls"])
+    base = sum(_tok(r["baseline_call"]) for r in routed)
+    same = all(provider(c["alias"]) == provider(baseline_alias) for r in routed for c in r["runtime_calls"])
+    return {"avoided_calls": len(avoided), "avoided_call_tokens": avoided_tokens,
+            "avoided_share_of_baseline": round(avoided_tokens / baseline_total, 4) if baseline_total else None,
+            "llm_routed": {"n": len(routed), "runtime_tokens": rt, "baseline_tokens": base,
+                           "difference": rt - base, "same_underlying_model": same}}
 
 
 def _count(it):
@@ -247,7 +324,8 @@ def render_markdown(rep: dict) -> str:
         L += ["> **DIAGNOSTIC ONLY.** Labels are unreviewed drafts and/or the set is not frozen.", ""]
     L += [f"Backend `{rep['backend']}`; baseline alias `{rep['baseline_alias']}` (owner's choice; the saving depends on it). "
           f"Items {p['items']}; fingerprint `{p['fingerprint']}`.", "",
-          "Not measured: answer quality, cache tier, energy or dollars, confirmation outcomes. Single run.", "",
+          "Not measured: free-text answer quality (only items with an expected_answer are scored, by containment), "
+          "cache tier, energy or dollars, confirmation outcomes. Single run.", "",
           "## Outcomes", *[f"- {k}: {v}" for k, v in rep["outcomes"].items()],
           f"- agreement with golden expected gate: {g['agree']}/{g['n']}; disagreements {g['disagreements']}", "",
           "## Runtime vs baseline (answered requests only)",
@@ -256,9 +334,30 @@ def render_markdown(rep: dict) -> str:
           f"baseline {rep['llm_calls']['baseline']} (failed {rep['llm_calls']['baseline_failed']})"]
     if t["measured"]:
         L.append(f"- tokens (provider-reported): runtime {t['runtime_in']} in / {t['runtime_out']} out; "
-                 f"baseline {t['baseline_in']} in / {t['baseline_out']} out; saving vs baseline {t['saving_vs_baseline']}")
+                 f"baseline {t['baseline_in']} in / {t['baseline_out']} out; all-in difference vs baseline "
+                 f"{t['saving_vs_baseline']} (includes run-to-run variation, see below)")
+        d = t.get("decomposition")
+        if d:
+            r = d["llm_routed"]
+            L.append(f"  - **Caused by routing:** {d['avoided_calls']} request(s) needed no LLM call; the baseline spent "
+                     f"{d['avoided_call_tokens']} tokens on them ({d['avoided_share_of_baseline']} of the baseline total).")
+            L.append(f"  - LLM-routed requests ({r['n']}): runtime {r['runtime_tokens']} vs baseline {r['baseline_tokens']} tokens "
+                     f"(difference {r['difference']}). " + (
+                         "Both sides used the same underlying model on the same text, so this difference is "
+                         "run-to-run variation, not a saving." if r["same_underlying_model"] else
+                         "The models differ, so this mixes model choice with run-to-run variation."))
     else:
         L.append("- tokens: not measured (stub backend or the provider reported none)")
+    c = rep.get("correctness") or {"scored": 0}
+    if c["scored"]:
+        n, m = c["non_llm"], c["llm"]
+        L += ["", "## Correctness (items with an expected_answer; containment check, so a pass is generous)",
+              f"- answered without the LLM: {n['runtime_correct']}/{n['n']} correct" + (f"; WRONG {n['wrong_ids']}" if n["wrong_ids"] else "")
+              + f" (baseline on the same kind of item: {n['baseline_correct']}/{n['baseline_n']})",
+              f"- answered by the LLM: {m['runtime_correct']}/{m['n']} correct" + (f"; wrong {m['wrong_ids']}" if m["wrong_ids"] else "")
+              + f" (baseline: {m['baseline_correct']}/{m['baseline_n']}" + (f"; wrong {m['baseline_wrong_ids']}" if m["baseline_wrong_ids"] else "") + ")",
+              "- Reading: a wrong non-LLM answer is the price of routing cheaply; compare it with the baseline's misses. "
+              "Verbose or reasoning-model answers can fail a containment check while being right, so inspect misses by hand.", ""]
     L += [f"- wall latency, summed: runtime {rep['latency_ms']['runtime_total']} ms, baseline {rep['latency_ms']['baseline_total']} ms", "",
           "## Per item", "| id | expected gate | outcome | tier | runtime LLM calls | note |", "|---|---|---|---|---|---|"]
     for r in rep["rows"]:
@@ -269,10 +368,10 @@ def render_markdown(rep: dict) -> str:
 
 # -- command line -------------------------------------------------------------------------------
 def preflight(cfg: GatewayConfig, baseline_alias: str) -> list[str]:
-    if cfg.backend != "anthropic":
+    if cfg.backend == "stub":
         return []
     from cost.model_registry import MODEL_CATALOG
-    out = [] if cfg.api_key else ["ANTHROPIC_API_KEY is not set"]
+    out = [] if cfg.api_key else ["the API key variable for this backend is not set (ANTHROPIC_API_KEY or LLM_API_KEY)"]
     need = sorted({m.name for m in MODEL_CATALOG} | {baseline_alias})
     missing = [n for n in need if n not in cfg.model_map]
     if missing:
@@ -301,19 +400,22 @@ def main(argv: Optional[list[str]] = None, *, observe_factory=None, gateway: Opt
     if bad:
         print("not started:\n  " + "\n  ".join(bad), file=sys.stderr)
         return 2
-    if gateway.config.backend == "anthropic":
+    if gateway.config.backend != "stub":
         print(f"REAL backend: up to about {2 * len(items)} billable calls plus any repair calls "
               f"({len(items)} items, baseline {a.baseline_alias}).", file=sys.stderr)
         if not a.yes_spend:
             print("refusing to spend without --yes-spend", file=sys.stderr)
             return 2
+    def _progress(line: str) -> None:
+        print(line, file=sys.stderr, flush=True)              # stderr, so the report on stdout stays clean
+
     set_gateway(gateway)
     try:
         if observe_factory is not None:
-            rep = run(items, observe_factory(gateway), gateway, a.baseline_alias)
+            rep = run(items, observe_factory(gateway), gateway, a.baseline_alias, _progress)
         else:
             with scratch_environment(a.workdir):
-                rep = run(items, real_pipeline(gateway), gateway, a.baseline_alias)
+                rep = run(items, real_pipeline(gateway), gateway, a.baseline_alias, _progress)
     finally:
         set_gateway(None)
     if a.json:
