@@ -274,3 +274,129 @@ def test_plain_http_is_refused_except_for_loopback():
     with pytest.raises(gw.GatewayConfigError, match="https"):
         gw.GatewayConfig(backend="anthropic", base_url="http://api.example.com")
     gw.GatewayConfig(backend="anthropic", base_url="http://127.0.0.1:9")
+
+
+# -- openai_compat backend (Groq, OpenRouter, Mistral, Ollama, ...) ---------------------------------
+GROQ = "https://api.groq.com/openai/v1"
+
+
+def oai_body(text="hello", i=11, o=7, finish="stop"):
+    return json.dumps({"choices": [{"message": {"role": "assistant", "content": text}, "finish_reason": finish}],
+                       "usage": {"prompt_tokens": i, "completion_tokens": o}}).encode()
+
+
+def make_oai(fake=None, tmp=None, **over):
+    cfg = gw.GatewayConfig(backend="openai_compat", api_key=KEY, base_url=GROQ, model_map=MAP,
+                           measurements_path=(tmp / "m.jsonl") if tmp else None, **over)
+    return gw.LLMGateway(cfg, transport=fake or Fake(body=oai_body())), fake
+
+
+def test_openai_request_shape_and_answer():
+    fake = Fake(body=oai_body("Paris"))
+    g, _ = make_oai(fake)
+    assert g.complete("capital of France?", "stub-large") == "Paris"
+    url, headers, body, timeout = fake.calls[0]
+    assert url == GROQ + "/chat/completions" and timeout == 30.0
+    assert headers["authorization"] == "Bearer " + KEY and headers["user-agent"].startswith("constitutional-runtime")
+    assert "x-api-key" not in headers and "anthropic-version" not in headers
+    assert body == {"model": "prov-large", "max_tokens": 1024, "temperature": 0.0,
+                    "messages": [{"role": "system", "content": gw.DEFAULT_SYSTEM},
+                                 {"role": "user", "content": "capital of France?"}]}
+
+
+def test_openai_token_param_name_is_configurable():
+    fake = Fake(body=oai_body())
+    g, _ = make_oai(fake, max_tokens_param="max_completion_tokens", max_output_tokens=300)
+    g.complete("x", "stub-small")
+    body = fake.calls[0][2]
+    assert body["max_completion_tokens"] == 300 and "max_tokens" not in body
+    with pytest.raises(gw.GatewayConfigError, match="LLM_MAX_TOKENS_PARAM"):
+        gw.GatewayConfig(backend="openai_compat", base_url=GROQ, max_tokens_param="max_new_tokens")
+
+
+def test_openai_measurement_uses_prompt_and_completion_tokens_and_length_means_truncated(tmp_path):
+    g, _ = make_oai(Fake(body=oai_body("cut off", i=40, o=300, finish="length")), tmp=tmp_path)
+    g.complete("x", "stub-small")
+    rec = json.loads((tmp_path / "m.jsonl").read_text(encoding="utf-8"))
+    assert (rec["input_tokens"], rec["output_tokens"], rec["truncated"]) == (40, 300, True)
+
+
+@pytest.mark.parametrize("body", [b"nope", b"{}", b'{"choices": []}', b'{"choices": [{"message": {}}]}',
+                                  b'{"choices": [{"message": {"content": null}}]}',
+                                  b'{"choices": [{"message": {"content": "   "}}]}',   # a reasoning model spent its whole budget
+                                  json.dumps({"choices": [{"message": {"content": "a"}}],
+                                              "usage": {"prompt_tokens": -3}}).encode()])
+def test_openai_malformed_or_empty_answers_are_bad_response(body):
+    g, _ = make_oai(Fake(body=body))
+    with pytest.raises(gw.LLMGatewayError) as ei:
+        g.complete("x", "stub-small")
+    assert ei.value.code == "bad_response"
+
+
+def test_openai_status_codes_and_no_provider_text_in_errors():
+    for status, code in ((401, "auth"), (429, "rate_limited"), (400, "bad_request"), (503, "upstream_error")):
+        g, _ = make_oai(Fake(status=status, body=json.dumps({"error": {"message": CANARY}}).encode()))
+        with pytest.raises(gw.LLMGatewayError) as ei:
+            g.complete(CANARY, "stub-small")
+        assert ei.value.code == code and CANARY not in repr(ei.value)
+
+
+def test_openai_backend_needs_a_base_url_and_its_own_key_variable():
+    with pytest.raises(gw.GatewayConfigError, match="LLM_BASE_URL is required"):
+        gw.GatewayConfig(backend="openai_compat")
+    with pytest.raises(gw.GatewayConfigError, match="https"):
+        gw.GatewayConfig(backend="openai_compat", base_url="http://api.example.com/v1")
+    cfg = gw.GatewayConfig.from_env({"LLM_BACKEND": "openai_compat", "LLM_BASE_URL": GROQ, "LLM_API_KEY": KEY,
+                                     "ANTHROPIC_API_KEY": "other", "LLM_MODEL_MAP": json.dumps(MAP)})
+    assert cfg.api_key == KEY and cfg.base_url == GROQ and KEY not in repr(cfg)
+    anth = gw.GatewayConfig.from_env({"LLM_BACKEND": "anthropic", "LLM_API_KEY": "nope", "ANTHROPIC_API_KEY": KEY})
+    assert anth.api_key == KEY and anth.base_url == "https://api.anthropic.com"     # default host kept
+
+
+def test_missing_key_or_mapping_fails_closed_for_openai_too():
+    fake = Fake(body=oai_body())
+    g = gw.LLMGateway(gw.GatewayConfig(backend="openai_compat", base_url=GROQ, model_map=MAP), transport=fake)
+    with pytest.raises(gw.LLMGatewayError, match="not_configured"):
+        g.complete("x", "stub-small")
+    g2, _ = make_oai(fake)
+    with pytest.raises(gw.LLMGatewayError, match="unmapped_model"):
+        g2.complete("x", "stub-medium")
+    assert fake.calls == []
+
+
+def test_pacing_waits_between_calls_and_not_before_the_first():
+    now, slept = [100.0], []
+    cfg = gw.GatewayConfig(backend="openai_compat", api_key=KEY, base_url=GROQ, model_map=MAP, min_interval_s=6.0)
+    g = gw.LLMGateway(cfg, transport=Fake(body=oai_body()), clock=lambda: now[0], sleep=lambda s: slept.append(s))
+    g.complete("a", "stub-small")                 # first call: no wait
+    now[0] += 1.0
+    g.complete("b", "stub-small")                 # 1 s later: must wait the remaining 5 s
+    now[0] += 20.0
+    g.complete("c", "stub-small")                 # long gap: no wait
+    assert slept == [5.0] and g.last_wait_s == 0.0            # the last call needed no wait
+
+
+def test_no_pacing_by_default_and_bad_interval_rejected():
+    slept = []
+    g = gw.LLMGateway(gw.GatewayConfig(backend="openai_compat", api_key=KEY, base_url=GROQ, model_map=MAP),
+                      transport=Fake(body=oai_body()), sleep=lambda s: slept.append(s))
+    g.complete("a", "stub-small")
+    g.complete("b", "stub-small")
+    assert slept == []
+    for bad in (-1, 601):
+        with pytest.raises(gw.GatewayConfigError, match="LLM_MIN_INTERVAL_S"):
+            gw.GatewayConfig(backend="openai_compat", base_url=GROQ, min_interval_s=bad)
+    with pytest.raises(gw.GatewayConfigError, match="LLM_MIN_INTERVAL_S"):
+        gw.GatewayConfig.from_env({"LLM_MIN_INTERVAL_S": "soon"})
+
+
+def test_openai_end_to_end_over_the_real_transport_to_a_local_server(tmp_path):
+    srv = _Server()
+    try:
+        cfg = gw.GatewayConfig(backend="openai_compat", api_key=KEY, base_url=srv.url, model_map=MAP,
+                               measurements_path=tmp_path / "m.jsonl")
+        with pytest.raises(gw.LLMGatewayError):           # the local test server only knows /v1/messages -> 404
+            gw.LLMGateway(cfg).complete("x", "stub-small")
+        assert srv.hits == [("/chat/completions", None)]  # right path; the key went in `authorization`, not x-api-key
+    finally:
+        srv.close()
