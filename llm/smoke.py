@@ -1,9 +1,26 @@
 
 """Live smoke test for the LLM gateway: the owner's first real call. Run it locally.
 
+Option A, a free Groq key (no billing; OpenAI-style API). Windows cmd syntax, no quotes around values:
+    set LLM_BACKEND=openai_compat
+    set LLM_BASE_URL=https://api.groq.com/openai/v1
+    set LLM_API_KEY=<your Groq key>                (never commit or paste the key)
+    set LLM_MODEL_MAP={"stub-small":"openai/gpt-oss-20b","stub-medium":"openai/gpt-oss-120b","stub-large":"openai/gpt-oss-120b"}
+    set LLM_MIN_INTERVAL_S=6
+    set LLM_MAX_OUTPUT_TOKENS=1024
+Why these values (Groq's published free limits at the time of writing, verify on your console's
+limits page): 30 requests/min, 1,000/day, only 8,000 tokens/min and 200,000 tokens/day per model. A
+6-second gap keeps token use under the per-minute cap. The gpt-oss models are the ones in Groq's free
+table; they spend part of the output budget on hidden reasoning, so do not set max output tokens low
+(an empty answer is reported as bad_response). Llama models may or may not be free on your account.
+If you get bad_request, set LLM_MAX_TOKENS_PARAM=max_completion_tokens and run again.
+
+Option B, a paid Anthropic key:
     set LLM_BACKEND=anthropic
-    set ANTHROPIC_API_KEY=...                      (never commit or paste the key)
+    set ANTHROPIC_API_KEY=<key>
     set LLM_MODEL_MAP={"stub-small":"<id>","stub-medium":"<id>","stub-large":"<id>"}
+
+Then:
     python -m llm.smoke [--aliases stub-small stub-large] [--json report.json]
 
 The map is YOUR decision: it says which provider model answers for each catalog tier. Use the
@@ -57,8 +74,8 @@ def main(argv: Optional[list[str]] = None, gateway: Optional[LLMGateway] = None)
             print(f"configuration error: {exc}", file=sys.stderr)       # names the variable, never a value
             return 2
     cfg = gateway.config
-    if cfg.backend != "anthropic":
-        print("LLM_BACKEND is not 'anthropic': nothing to test. See the module docstring.", file=sys.stderr)
+    if cfg.backend == "stub":
+        print("LLM_BACKEND is 'stub': nothing to test. See the module docstring.", file=sys.stderr)
         return 2
     aliases = args.aliases or sorted(cfg.model_map)
     if not aliases:
