@@ -129,7 +129,7 @@ class GatewayConfig:
         if not (0.0 <= self.temperature <= 1.0):
             raise GatewayConfigError("LLM_TEMPERATURE must be in [0, 1]")
         if self.max_tokens_param not in _MAX_TOKENS_PARAMS:
-            raise GatewayConfigError(f"LLM_MAX_TOKENS_PARAM must be one of {_MAX_TOKENS_PARAMS}")
+            raise GatewayConfigError("LLM_MAX_TOKENS_PARAM must be one of ('max_tokens', 'max_completion_tokens')")
         if not (0.0 <= self.min_interval_s <= 600.0):
             raise GatewayConfigError("LLM_MIN_INTERVAL_S must be in [0, 600]")
         if self.backend == "anthropic" and not self.base_url:
