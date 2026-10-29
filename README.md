@@ -16,7 +16,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 
 `cost/` — figures out what things cost
 - `calibration/calibration.py` — planned script to refresh cost numbers from real usage data
-- `breakeven.py` — planned analysis of whether runtime overhead itself costs more than it saves
+- `breakeven.py` — breakeven analysis of whether runtime overhead costs more than it saves (latency, tokens, RAG ceiling; no energy or dollar figures)
 - `estimator.py` — estimates energy/dollar/latency/token cost for a request + tier/model, with explicit assumptions and uncertainty
 - `model_registry.py` — model/cost catalog and energy anchors
 
@@ -32,7 +32,15 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `human_checkpoint.py` — confirm-before-execute gate for `REQUIRE_HUMAN`: single-use, signed tokens bound to session, exact text, and rule set
 
 `llm/` — talks to the actual AI models
-- `gateway.py` — planned raw API client (auth, retries, request/response format)
+- `gateway.py` — LLM gateway with backends `stub` (default), `anthropic` and `openai_compat`; no retries, no silent fallback, static error codes, measurements written to a separate JSONL
+- `smoke.py` — small manual smoke check of a configured backend
+
+`evaluation/` — Sprint 7–8 experiment tooling
+- `golden_set.py`, `data/golden_v1.jsonl` — golden set v1 (106 items, draft-labelled, not yet owner-reviewed or frozen)
+- `offline_runner.py`, `review.py` — offline gate/route runs and the owner review workflow
+- `e2e_runner.py` — end-to-end runtime vs baseline run (spends real API calls only with `--yes-spend`)
+
+`.github/workflows/tests.yml` — CI (Python 3.11, `requirements-ci.txt`)
 
 `audit/` — keeps a record
 - `audit_log.py` — logs every decision made and why; records `execution`, validation trace, and withheld-route estimates
@@ -56,7 +64,7 @@ This repository contains the Constitutional Runtime capstone implementation: a r
 - `deterministic.py` — rule-based / calculator / lookup answers, no AI involved
 - `small_classifier.py` — a small, cheap model for simple categorization tasks
 - `rag_small_model.py` — a small model with retrieved reference info to back its answer
-- `llm_call.py` — full-LLM call stub (via `llm/gateway.py`); reasoning-depth control is planned (OI-006)
+- `llm_call.py` — full-LLM call via `llm/gateway.py`; reasoning-depth control is not implemented (OI-006)
 - `model_selector.py` — selects among candidate models using capability floors and energy/dollar objectives
 
 `triage/` — decides what kind of request this is and where it should go
@@ -108,9 +116,11 @@ The HTTP boundary is text-only. The runtime does not claim multimodal support, a
 
 The Stage 3 planner (`triage/decision.py`) is committed and wired into the live request path in `api/main.py`. The Stage 4 feedforward layer is also committed and integrated, providing templated route/outcome text and a high-cost confirmation gate. The API exposes a `feedforward` response field alongside the confirmation fields where applicable. The small-classifier implementation and retrieval prototype are now also committed; the complete RAG generation path is intentionally not yet implemented.
 
-The latest owner-reported local full-suite run is **816 passed, 1 skipped**. This is an owner-reported result; no independent test run is claimed here.
+Test counts change often; see the latest CI run and `docs/OPEN_ENDS.md` (OI-022) rather than a number here. The suite carries 20 strict xfails that document known limits.
 
-**Sprint 6 — IN PROGRESS.** Server-issued session identity and the text-only ingress boundary are implemented. CI, the full audit schema, the adversarial suites, and protection for `/.github/workflows/` in both CODEOWNERS copies are not yet complete. Real LLM integration is deferred to Sprint 7. OI-013 is resolved only for client-chosen/forged IDs; OI-078 tracks the residual fresh-session reset path. OI-040 remains open, narrowed to human-identity verification. OI-003 and OI-054 remain open.
+**Sprint 6 — close-out documented (not claimed as owner-closed).** Server-issued session identity, the text-only ingress boundary, CI, the schema-v2 audit log and the adversarial suites are implemented; residuals are tracked in `docs/OPEN_ENDS.md`.
+
+**Sprints 7–8 — IN PROGRESS.** The LLM gateway, golden set v1 (106 draft items), end-to-end runner and breakeven analysis exist, and a first diagnostic run has been made. Results are diagnostic only and do not yet support a savings claim (OI-097); see `docs/EXECUTION_PLAN.md`. OI-013 is resolved only for client-chosen/forged IDs; OI-078 tracks the residual fresh-session reset path. OI-040 remains open, narrowed to human-identity verification. OI-003 and OI-054 remain open.
 
 Carry-forwards and unresolved work are tracked in `docs/OPEN_ENDS.md`; sprint detail is in `docs/EXECUTION_PLAN.md`.
 
@@ -126,12 +136,37 @@ Related tests: `tests/guardrails/test_language_gate.py` and `tests/api/test_unsu
 
 New Sprint 6 tests cover server-issued session identity/HTTP rejection paths and the text-only ingress/modality boundary. These tests verify refusal behavior rather than multimodal support.
 
-The current `main` branch contains the Sprint 3 session-state/cost/model-selection work, Sprint 4 graduated routing/feedforward, Sprint 5 validation/repair/governance/bias-monitor work, and the Sprint 6 server-issued session identity and text-only ingress boundary. The RAG generation path is intentionally incomplete, and Sprint 6 is **IN PROGRESS, not complete**.
+The current `main` branch contains the Sprint 3 session-state/cost/model-selection work, Sprint 4 graduated routing/feedforward, Sprint 5 validation/repair/governance/bias-monitor work, and the Sprint 6 server-issued session identity and text-only ingress boundary. The RAG generation path is intentionally incomplete, and Sprints 7–8 are **IN PROGRESS**.
 
 ## Root files
 - `README.md` — project overview and repository map
 - `requirements.txt` — Python dependencies
 
+
+## LLM gateway configuration
+
+The default backend is `stub` (no network). Real backends are selected by environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `LLM_BACKEND` | `stub`, `anthropic` or `openai_compat` |
+| `LLM_BASE_URL`, `LLM_API_KEY` | endpoint and key for `openai_compat` (for example Groq) |
+| `ANTHROPIC_API_KEY` | key for the `anthropic` backend |
+| `LLM_MODEL_MAP` | maps model aliases to provider model names |
+| `LLM_TIMEOUT_S`, `LLM_MAX_OUTPUT_TOKENS`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS_PARAM` | request limits (defaults: 30 s, 1,024, 0.0; see OI-092) |
+| `LLM_MEASUREMENTS_PATH` | JSONL file for per-call measurements |
+| `LLM_MIN_INTERVAL_S` | minimum seconds between calls (provider pacing) |
+
+## Evaluation commands
+
+From the repository root (the end-to-end run spends real API calls and requires `--yes-spend`; see `evaluation/e2e_runner.py --help` for the remaining flags):
+
+```text
+python -m evaluation.e2e_runner --baseline-alias <alias> --split dev --yes-spend --json real_run.json --markdown real_run.md
+python -m cost.breakeven --real --json breakeven.json --markdown breakeven.md
+```
+
+Results on the draft golden set are diagnostic only.
 
 ## Governance and bias-monitor checks
 
