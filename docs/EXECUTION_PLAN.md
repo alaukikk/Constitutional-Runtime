@@ -183,7 +183,7 @@ Rendering failures currently fail open so execution can continue without feedfor
 
 ### Remaining
 
-- **Required CI check (operationally open):** the main-branch ruleset must require `pytest (Python 3.11)`. The current ruleset has no `required_status_checks` rule, so a green run is not yet a merge gate. This requires a repository-settings change; it is not completed by the documentation/CODEOWNERS PR.
+- **Required CI check (owner-reported; enforcement not independently verified):** the owner reported on 2026-10-20 that `pytest (Python 3.11)` was added as a required status check on `main`. An earlier ruleset snapshot had no `required_status_checks` rule, so verify the active `protect-main` ruleset and enforcement on a pull request before calling a green run a confirmed merge gate (OI-022).
 - **CP-002 Part A (OI-080/OI-081):** implementation is on `main`. CI passed on merge commit `8d29c147767f71512fbb61af9f5e992385bcad43`: **1,439 passed, 20 xfailed, 1 warning** (run [#39316274092](https://github.com/alaukikk/Constitutional-Runtime/actions/runs/39316274092), Python 3.11). Twenty formerly-xfailed cases now pass (F-01 ×10, F-02 ×7, F-03 ×2, F-05 ×1); 12 legacy xfails and 8 new residual-limit xfails remain, totaling 20 xfailed. OI-080 is partially resolved with F-04 open; F-06 remains the pattern-only limit tracked under OI-082. OI-081 is resolved for tested whitespace, hyphen, and apostrophe handling only. Stage 0 preserves normalization v1 downstream, `config/constitution.yaml` is unchanged, and this is **not injection-robust**. Stage 1 changes in `policy/engine.py` remain subject to policy-governance/code-owner review.
 - **OI-084 application-log exposure review:** constrain exception logging and ensure request content cannot flow into operational logs before any non-local deployment.
 - **Known residuals:** OI-078 fresh-session reset, OI-083 cross-process audit append safety, OI-085 repeated `REQUIRE_HUMAN` resubmission/risk charging, and CP-002 carry-overs OI-086–OI-090 remain tracked. OI-086/OI-087/OI-089 are provisional defaults; OI-088 is an accepted defect/limit, and OI-090 records the downstream v1-text limitation. The Stage 0/1 execution-scope guard is in `OPEN_ENDS.md`.
@@ -194,11 +194,11 @@ Rendering failures currently fail open so execution can continue without feedfor
 - Audit records use CP-001 schema v2. The log stores no raw request text; the per-record-salted HMAC is evidence for reporter-supplied matching, not a way to reconstruct unflagged requests.
 - The normalization golden test freezes version 1's outputs; it does not certify the normalization as secure. CP-002 Part A adds matching-only views without changing the v1 golden test. F-01/F-03/F-05 are closed only for the tested cases; F-04/F-06 remain unresolved. The matching-view corpus is hand-written by Claude (70 items), not real traffic, and cannot establish real-world false-positive rates.
 - The in-process audit write lock prevents same-process writer collisions only. Cross-process/shared-sink durability is future work.
-- Real LLM integration remains deferred to **Sprint 7**.
+- Real LLM integration was deferred to **Sprint 7**; it has since started (see "Sprints 7–8 status" below).
 
 **Close-out boundary:** Sprint 6 implementation and its current automated checks are documented as complete. The owner has reported that CI is configured as a required branch check, but that repository-settings state is not independently verified here; confirm the active ruleset and enforcement before calling it verified. The listed security, deployment, and policy decisions remain open. This is not a claim that the runtime is production-ready or injection-robust.
 
-## Sprints 7–8 — The actual experiment
+## Sprints 7–8 — The actual experiment (IN PROGRESS)
 
 This is where the capstone's central claims get tested, using the evaluation framework in `RESEARCH_TRACEABILITY.md`.
 
@@ -209,6 +209,41 @@ This is where the capstone's central claims get tested, using the evaluation fra
 5. **Shadow-mode validation** — log what the runtime *would* have chosen on real traffic without acting on it, before treating it as load-bearing.
 
 **This is the deliverable that proves the thesis**, not just "the code runs."
+
+### Sprints 7–8 status (in progress)
+
+Real LLM integration is no longer deferred. Built on `main`:
+
+- `llm/gateway.py` — the single place a real model is called. Backends: `stub` (default, so CI and the test suite stay offline), `anthropic`, and `openai_compat` (Groq's free tier is the provider used so far). No retries, no silent fallback for an unmapped model, errors carry static codes only (OI-084), and provider-reported tokens and latency go to a separate measurements file. `tiers/llm_call.py` delegates to it, so Stages 5 and 6 are unchanged. `llm/smoke.py` is the owner's first-call smoke test. There is still no reasoning-depth control (OI-006).
+- `evaluation/` — `golden_set.py` with `data/golden_v1.jsonl` (106 items; all labelled `claude-draft`, review `draft`, split `dev`; **not owner-reviewed and not frozen**), `offline_runner.py`, `e2e_runner.py` (the real pipeline against an always-call-the-LLM baseline; it refuses real spend without `--yes-spend`, and the baseline model is the owner's choice with no default), and `review.py` (owner review sheet).
+- `cost/breakeven.py` — implemented. It takes one real and one stub e2e report and reports latency, tokens and a RAG upper bound. It produces no energy or dollar figures (OI-005).
+
+**First diagnostic results.** One owner-run pass (Groq; baseline alias `stub-large` = `openai/gpt-oss-120b`; golden-set fingerprint `ea270e62ae8276563e36b90e7d9edb8336bd99f842edead237abfefa89a7b99a`), plus one stub-backend pass. These are **diagnostic only**: draft labels, a hand-written set, a single run, no cache warm-up. They are not evidence about real traffic.
+
+| Measure | Result |
+|---|---|
+| Outcomes (106 items) | 13 answered without a model (deterministic tier), 61 answered by the LLM, 23 blocked, 9 needing confirmation, 0 errors |
+| Agreement with the draft expected gate | 97/106 real run, 98/106 stub run (see OI-099) |
+| Runtime overhead per request (stub run) | mean 1.737 ms, median 1.28 ms, p95 1.649 ms |
+| Baseline model call | mean 939.7 ms, 309.4 tokens |
+| Model calls skipped | 13 of 74 answered requests (17.6%); 12.3% of all requests |
+| Latency breakeven | overhead is about 0.19% of one model call, so breakeven needs about 0.19% of requests to skip a call |
+| Net latency saved | about 12.0 s over the set (12.2 s of skipped calls minus 0.18 s of overhead) |
+| Tokens attributable to routing | 1,829 tokens, 8.0% of the baseline total (22,897): the calls that were never made |
+| All-in token difference | 15.9% lower (runtime 19,268 vs baseline 22,897). This mixes routing with model choice: the runtime sent 60 of its 61 model calls to `gpt-oss-20b` and 1 to `gpt-oss-120b`, while the baseline used `gpt-oss-120b` (OI-093) |
+| Correctness (21 items with an `expected_answer`, containment check) | runtime 21/21, baseline 21/21; too few items to separate them (OI-091) |
+| RAG upper bound | 15 requests the draft labels say RAG could answer, 5,106 baseline tokens (22.3%); a ceiling that assumes zero-cost correct answers. No RAG decision has been made (OI-054) |
+
+Wall-latency note: the raw real-run report sums runtime wall time to 279.2 s because one item (G-080) logged about 219.5 s while the owner's machine was asleep. With that item replaced by the mean of the other 60 LLM-routed items (about 994 ms) the total is about 60.7 s against 69.5 s for the baseline. That is an imputed figure and the raw JSON is unchanged (OI-094).
+
+**What this supports, and what it does not.** On this set the runtime's own overhead is negligible next to a model call, and skipping model calls gives a real but small token saving (8%) because the requests answered without a model are short (about 141 tokens each against 309 on average). It does **not** support a claim of "considerable savings"; OI-097 records how that claim has to be defined and measured before it is made.
+
+### Remaining Sprint 7–8 sequence
+
+1. **Owner review and freeze of the golden set** (OI-011, must-fix): resolve the contested items (G-017 and the `policy_gap` items), then freeze with the fingerprint recorded **before** any threshold is tuned.
+2. **Define the savings claim, the workload and the baseline** (OI-097), and plan coverage expansion against the existing `TAXONOMY.MD` categories (OI-098). Owner direction (2026-10-29): extend the pipeline step by step so that more request types are handled by non-AI methods, accepting extra latency in exchange for fewer AI calls.
+3. **Re-run the end-to-end and breakeven measurements on the frozen split**, add a repeated-request run so the cache tier is measured (the first runs used a cold cache), and keep calls avoided and tokens saved as separate figures.
+4. Original steps 3–5: full red-team, the five-dimension comparative evaluation, and shadow-mode validation.
 
 ### Provisional defaults in force
 
@@ -221,6 +256,7 @@ Copy/update this table in the Sprint 7–8 report using the live OI-086–OI-090
 | OI-088 | No provisional default; known control-character separator defect remains an accepted limit. | Before any separator-robustness claim; reopen Stage 0 only under the evidence guard. | To be recorded if relevant evidence appears. | Still open |
 | OI-089 | Accept the pre-existing pasted-log false positive as a pattern-only Stage 0 limitation. | Frequency of legitimate logs/transcripts blocked solely by `nested_instruction_marker`. | To be recorded during Sprints 7–8. | Still open |
 | OI-090 | Keep v1 text downstream; do not draft CP-003 now. | Red-team/shadow-mode evidence that obfuscation reaching classifier/model changes an outcome. | To be recorded during Sprints 7–8; report must distinguish gate-evaluated text from model/classifier input. | Still open |
+| OI-092 | Gateway: timeout 30 s, max output 1,024 tokens, temperature 0.0, one neutral system prompt, no retries, provider-specific pacing. | Empty or truncated answers, rate-limit errors, or a change of provider or model. | First real run: two `bad_response` calls on G-033 (empty answer, output withheld) and outputs at the 1,024-token cap on G-007 (runtime) and G-050 (baseline). | Still open |
 
 ## Open items
 
