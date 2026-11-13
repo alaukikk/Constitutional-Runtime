@@ -10,6 +10,10 @@ rules:
       - "credit card number"
       - "someone's password"
       - "without their consent"
+      - "without her knowing"
+      - "without him knowing"
+      - "without them knowing"
+      - "without their knowledge"
 
   - rule_id: DP-002
     risk_category: data_privacy
@@ -29,6 +33,13 @@ rules:
       - "synthesize a nerve agent"
       - "build an explosive"
       - "untraceable poison"
+      - "build a pipe bomb"
+      - "make a pipe bomb"
+      - "pipe bomb instructions"
+      - "make a bomb"
+      - "build a bomb"
+      - "make a nerve agent"
+      - "make nerve agent"
 
   - rule_id: DC-002
     risk_category: dangerous_content
@@ -48,6 +59,19 @@ rules:
       - "medical diagnosis"
       - "should i fire"
       - "financial advice for my client"
+      - "should i stop taking"
+      - "should i start taking"
+      - "what dose"
+      - "safe dose"
+      - "dosage for"
+      - "how much ibuprofen"
+      - "how much acetaminophen"
+      - "how much tylenol"
+      - "can i sue"
+      - "should i sue"
+      - "is this mole"
+      - "cancerous"
+      - "do i have cancer"
 
   - rule_id: HAC-002
     risk_category: human_ai_configuration
@@ -56,3 +80,8 @@ rules:
     keywords:
       - "don't ask me to confirm"
       - "just do it automatically without checking"
+      - "skip the confirmation"
+      - "without any safety review"
+      - "without a safety review"
+      - "no checks"
+      - "without confirmation"
