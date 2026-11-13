@@ -1,1 +1,220 @@
-
+{
+ "relations": [
+  {
+   "name": "capital_of",
+   "kind": "stable",
+   "source": "Standard reference; OWNER MUST VERIFY against an authoritative list (e.g. UN/CIA Factbook) before use",
+   "checked": "UNVERIFIED-draft-2026-10-30",
+   "templates": [
+    "what is the capital of {e}",
+    "what is the capital city of {e}",
+    "capital of {e}",
+    "{e} capital"
+   ],
+   "facts": {
+    "germany": "Berlin",
+    "italy": "Rome",
+    "spain": "Madrid",
+    "canada": "Ottawa",
+    "australia": "Canberra",
+    "brazil": "Brasília",
+    "egypt": "Cairo",
+    "india": "New Delhi",
+    "china": "Beijing",
+    "russia": "Moscow",
+    "portugal": "Lisbon",
+    "greece": "Athens",
+    "norway": "Oslo",
+    "sweden": "Stockholm",
+    "kenya": "Nairobi",
+    "argentina": "Buenos Aires",
+    "turkey": "Ankara",
+    "thailand": "Bangkok",
+    "south korea": "Seoul",
+    "new zealand": "Wellington",
+    "ireland": "Dublin",
+    "poland": "Warsaw",
+    "austria": "Vienna",
+    "switzerland": "Bern",
+    "netherlands": "Amsterdam",
+    "belgium": "Brussels",
+    "united kingdom": "London",
+    "uk": "London",
+    "united states": "Washington, D.C.",
+    "usa": "Washington, D.C.",
+    "mexico": "Mexico City",
+    "peru": "Lima",
+    "chile": "Santiago",
+    "nigeria": "Abuja",
+    "pakistan": "Islamabad",
+    "bangladesh": "Dhaka",
+    "nepal": "Kathmandu",
+    "sri lanka": "Sri Jayawardenepura Kotte",
+    "vietnam": "Hanoi",
+    "indonesia": "Jakarta",
+    "philippines": "Manila"
+   }
+  },
+  {
+   "name": "element_symbol",
+   "kind": "stable",
+   "source": "IUPAC periodic table; OWNER MUST VERIFY",
+   "checked": "UNVERIFIED-draft-2026-10-30",
+   "templates": [
+    "what is the chemical symbol for {e}",
+    "what is the symbol for {e}",
+    "what is the chemical symbol of {e}",
+    "chemical symbol for {e}"
+   ],
+   "facts": {
+    "hydrogen": "H",
+    "helium": "He",
+    "lithium": "Li",
+    "carbon": "C",
+    "nitrogen": "N",
+    "oxygen": "O",
+    "fluorine": "F",
+    "neon": "Ne",
+    "sodium": "Na",
+    "magnesium": "Mg",
+    "aluminium": "Al",
+    "aluminum": "Al",
+    "silicon": "Si",
+    "phosphorus": "P",
+    "sulfur": "S",
+    "sulphur": "S",
+    "chlorine": "Cl",
+    "argon": "Ar",
+    "potassium": "K",
+    "calcium": "Ca",
+    "iron": "Fe",
+    "copper": "Cu",
+    "zinc": "Zn",
+    "silver": "Ag",
+    "tin": "Sn",
+    "gold": "Au",
+    "mercury": "Hg",
+    "lead": "Pb"
+   }
+  },
+  {
+   "name": "author_of",
+   "kind": "stable",
+   "source": "Standard literary reference; OWNER MUST VERIFY",
+   "checked": "UNVERIFIED-draft-2026-11-13",
+   "templates": [
+    "who wrote {e}",
+    "who is the author of {e}",
+    "who authored {e}"
+   ],
+   "facts": {
+    "pride and prejudice": "Jane Austen",
+    "emma": "Jane Austen",
+    "1984": "George Orwell",
+    "animal farm": "George Orwell",
+    "hamlet": "William Shakespeare",
+    "macbeth": "William Shakespeare",
+    "romeo and juliet": "William Shakespeare",
+    "the odyssey": "Homer (traditionally attributed)",
+    "the iliad": "Homer (traditionally attributed)",
+    "war and peace": "Leo Tolstoy",
+    "anna karenina": "Leo Tolstoy",
+    "crime and punishment": "Fyodor Dostoevsky",
+    "don quixote": "Miguel de Cervantes",
+    "moby dick": "Herman Melville",
+    "great expectations": "Charles Dickens",
+    "a tale of two cities": "Charles Dickens",
+    "the great gatsby": "F. Scott Fitzgerald",
+    "to kill a mockingbird": "Harper Lee",
+    "frankenstein": "Mary Shelley",
+    "dracula": "Bram Stoker",
+    "jane eyre": "Charlotte Brontë",
+    "wuthering heights": "Emily Brontë",
+    "the hobbit": "J. R. R. Tolkien",
+    "on the origin of species": "Charles Darwin",
+    "the origin of species": "Charles Darwin"
+   }
+  },
+  {
+   "name": "boiling_point",
+   "kind": "stable",
+   "source": "CRC Handbook / NIST values; OWNER MUST VERIFY",
+   "checked": "UNVERIFIED-draft-2026-11-13",
+   "templates": [
+    "what is the boiling point of {e}",
+    "what is the boiling point of {e} at sea level",
+    "boiling point of {e}",
+    "at what temperature does {e} boil"
+   ],
+   "facts": {
+    "water": "100 °C (212 °F) at standard atmospheric pressure (sea level)",
+    "ethanol": "about 78 °C (173 °F) at standard atmospheric pressure",
+    "nitrogen": "-195.8 °C (-320.4 °F) at standard atmospheric pressure",
+    "oxygen": "-183 °C (-297 °F) at standard atmospheric pressure",
+    "mercury": "356.7 °C (674 °F) at standard atmospheric pressure"
+   }
+  },
+  {
+   "name": "acronym_expansion",
+   "kind": "stable",
+   "source": "Standard expansions; OWNER MUST VERIFY",
+   "checked": "UNVERIFIED-draft-2026-11-13",
+   "templates": [
+    "what does {e} stand for",
+    "what is {e} short for"
+   ],
+   "facts": {
+    "http": "Hypertext Transfer Protocol",
+    "https": "Hypertext Transfer Protocol Secure",
+    "html": "HyperText Markup Language",
+    "css": "Cascading Style Sheets",
+    "url": "Uniform Resource Locator",
+    "cpu": "central processing unit",
+    "gpu": "graphics processing unit",
+    "ram": "random-access memory",
+    "usb": "Universal Serial Bus",
+    "dns": "Domain Name System",
+    "api": "Application Programming Interface",
+    "sql": "Structured Query Language",
+    "pdf": "Portable Document Format",
+    "nasa": "National Aeronautics and Space Administration",
+    "gdp": "gross domestic product",
+    "llm": "large language model",
+    "ai": "artificial intelligence"
+   }
+  },
+  {
+   "name": "event_year",
+   "kind": "stable",
+   "source": "Standard history reference; OWNER MUST VERIFY",
+   "checked": "UNVERIFIED-draft-2026-11-13",
+   "templates": [
+    "when did {e}"
+   ],
+   "facts": {
+    "the berlin wall fall": "1989 (9 November)",
+    "world war ii end": "1945",
+    "world war i end": "1918 (armistice on 11 November)",
+    "the soviet union dissolve": "1991",
+    "the titanic sink": "1912 (15 April)",
+    "the french revolution begin": "1789",
+    "humans first land on the moon": "1969 (20 July)"
+   }
+  },
+  {
+   "name": "president_of",
+   "kind": "expiring",
+   "source": "Élysée (elysee.fr); OWNER MUST VERIFY on the as_of date",
+   "checked": "UNVERIFIED-draft-2026-11-13",
+   "templates": [
+    "who is the president of {e}",
+    "who is {e}'s president"
+   ],
+   "facts": {
+    "france": "Emmanuel Macron"
+   },
+   "as_of": "2026-11 (unverified draft)",
+   "valid_until": "2027-03-31"
+  }
+ ]
+}
