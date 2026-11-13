@@ -1,4 +1,5 @@
 
+
 """End-to-end run of the REAL pipeline on the golden set, against an always-call-the-LLM baseline.
 
 Sprint 7-8, steps 2 and 4 of the plan: "does the runtime save anything, and at what cost to safety".
@@ -192,7 +193,7 @@ def real_pipeline(gateway: RecordingGateway) -> Callable[[gs.GoldenItem], Observ
 # -- scoring ------------------------------------------------------------------------------------
 def run(items: Iterable[gs.GoldenItem], observe: Callable[[gs.GoldenItem], Observed],
         gateway: RecordingGateway, baseline_alias: str,
-        progress: Optional[Callable[[str], None]] = None) -> dict:
+        progress: Optional[Callable[[str], None]] = None, second_pass: bool = False) -> dict:
     items = list(items)
     rows = []
     for n, it in enumerate(items, 1):
@@ -221,7 +222,53 @@ def run(items: Iterable[gs.GoldenItem], observe: Callable[[gs.GoldenItem], Obser
         if progress:
             progress(f"[{n}/{len(items)}] {it.id} {oc} tier={o.tier_used} runtime_llm_calls={len(o.llm_calls)}"
                      + (f" baseline={'ok' if base and base.ok else 'failed'}" if oc.startswith("answered") else ""))
-    return summarize(items, rows, baseline_alias, gateway.config.backend, gateway.config.model_map)
+    rep = summarize(items, rows, baseline_alias, gateway.config.backend, gateway.config.model_map)
+    if second_pass:
+        rep["repeat"] = _repeat_pass(items, rows, observe, gateway, progress)
+    return rep
+
+
+def _calls_tokens(calls) -> Optional[int]:
+    ok = [c for c in calls if c.ok]
+    if any(c.input_tokens is None or c.output_tokens is None for c in ok):
+        return None
+    return sum(c.input_tokens + c.output_tokens for c in ok)
+
+
+def _repeat_pass(items: list[gs.GoldenItem], rows: list[dict], observe, gateway, progress) -> dict:
+    """Send every request that was ANSWERED in the first pass again, in the same scratch environment
+    (the in-memory cache is warm, session state is fresh per item). Measures the cache tier: how many
+    repeats are served without a model call and how many tokens that saves. Repeated requests are what a
+    cache is for; the golden set has none, so the first pass can never show it."""
+    first = {r["id"]: r for r in rows}
+    out = []
+    for it in items:
+        r1 = first[it.id]
+        if r1["outcome"] not in ("answered_non_llm", "answered_llm"):
+            continue
+        o = observe(it)
+        oc = outcome_of(o)
+        out.append({"id": it.id, "first_outcome": r1["outcome"], "first_tier": r1["tier_used"],
+                    "first_runtime_calls": len(r1["runtime_calls"]),
+                    "first_tokens": sum(c["input_tokens"] + c["output_tokens"] for c in r1["runtime_calls"] if c["ok"]
+                                        and c["input_tokens"] is not None and c["output_tokens"] is not None),
+                    "second_outcome": oc, "second_tier": o.tier_used, "second_runtime_calls": len(o.llm_calls),
+                    "second_tokens": _calls_tokens(o.llm_calls), "second_wall_ms": o.wall_ms,
+                    "first_wall_ms": r1["wall_ms"]})
+        if progress:
+            progress(f"[repeat] {it.id} {oc} tier={o.tier_used} runtime_llm_calls={len(o.llm_calls)}")
+    cache_hits = [x for x in out if x["second_tier"] == "cache_lookup"]
+    llm_first = [x for x in out if x["first_runtime_calls"] > 0]
+    return {"requests": len(out), "served_from_cache": len(cache_hits),
+            "llm_calls_first": sum(x["first_runtime_calls"] for x in out),
+            "llm_calls_second": sum(x["second_runtime_calls"] for x in out),
+            "tokens_first": sum(x["first_tokens"] for x in out),
+            "tokens_second": (None if any(x["second_tokens"] is None for x in out)
+                              else sum(x["second_tokens"] for x in out)),
+            "llm_requests_first": len(llm_first),
+            "llm_requests_cached_second": sum(1 for x in llm_first if x["second_tier"] == "cache_lookup"),
+            "wall_ms_first": round(sum(x["first_wall_ms"] for x in out), 3),
+            "wall_ms_second": round(sum(x["second_wall_ms"] for x in out), 3), "rows": out}
 
 
 def summarize(items: list[gs.GoldenItem], rows: list[dict], baseline_alias: str, backend: str,
@@ -239,6 +286,15 @@ def summarize(items: list[gs.GoldenItem], rows: list[dict], baseline_alias: str,
     b_out = sum(c["output_tokens"] for c in ok_base) if have_tokens else None
     b_tot = (b_in + b_out) if have_tokens else None
     saving = round(1 - (rt_in + rt_out) / b_tot, 4) if have_tokens and b_tot else None
+    # Spend on requests that were NOT answered (withheld after a model call, errors): real cost the runtime
+    # incurred and the answered-only comparison above leaves out.
+    unanswered = [r for r in rows if r["outcome"] not in ("answered_non_llm", "answered_llm") and r["runtime_calls"]]
+    un_calls = [c for r in unanswered for c in r["runtime_calls"]]
+    un_ok = [c for c in un_calls if c["ok"]]
+    un_tokens = (sum(c["input_tokens"] + c["output_tokens"] for c in un_ok)
+                 if have_tokens and all(c["input_tokens"] is not None for c in un_ok) else None)
+    saving_all = (round(1 - ((rt_in + rt_out) + un_tokens) / b_tot, 4)
+                  if have_tokens and b_tot and un_tokens is not None else None)
     decomposition = _decompose(answered, baseline_alias, model_map or {}, have_tokens, b_tot)
     prov = {"items": len(items), "labelers": dict(_count(i.labeler for i in items)),
             "reviews": dict(_count(i.review for i in items)), "splits": dict(_count(i.split for i in items)),
@@ -254,7 +310,10 @@ def summarize(items: list[gs.GoldenItem], rows: list[dict], baseline_alias: str,
         "llm_calls": {"runtime": len(rt_calls), "runtime_failed": len(rt_calls) - len(ok_rt),
                       "baseline": len(base_calls), "baseline_failed": len(base_calls) - len(ok_base)},
         "tokens": {"measured": have_tokens, "runtime_in": rt_in, "runtime_out": rt_out, "baseline_in": b_in,
-                   "baseline_out": b_out, "saving_vs_baseline": saving, "decomposition": decomposition},
+                   "baseline_out": b_out, "saving_vs_baseline": saving, "decomposition": decomposition,
+                   "unanswered_spend": {"requests": len(unanswered), "ids": [r["id"] for r in unanswered],
+                                        "calls": len(un_calls), "tokens": un_tokens},
+                   "saving_vs_baseline_incl_unanswered": saving_all},
         "correctness": _correctness(rows),
         "latency_ms": {"runtime_total": round(sum(r["wall_ms"] for r in answered), 3),
                        "baseline_total": round(sum(c["latency_ms"] for c in base_calls), 3)},
@@ -336,6 +395,11 @@ def render_markdown(rep: dict) -> str:
         L.append(f"- tokens (provider-reported): runtime {t['runtime_in']} in / {t['runtime_out']} out; "
                  f"baseline {t['baseline_in']} in / {t['baseline_out']} out; all-in difference vs baseline "
                  f"{t['saving_vs_baseline']} (includes run-to-run variation, see below)")
+        u = t.get("unanswered_spend")
+        if u and u["calls"]:
+            L.append(f"  - **Spend on requests with no answer delivered** (withheld/error): {u['requests']} request(s) {u['ids']}, "
+                     f"{u['calls']} call(s), {u['tokens']} tokens; all-in difference including it: "
+                     f"{t.get('saving_vs_baseline_incl_unanswered')}")
         d = t.get("decomposition")
         if d:
             r = d["llm_routed"]
@@ -358,6 +422,17 @@ def render_markdown(rep: dict) -> str:
               + f" (baseline: {m['baseline_correct']}/{m['baseline_n']}" + (f"; wrong {m['baseline_wrong_ids']}" if m["baseline_wrong_ids"] else "") + ")",
               "- Reading: a wrong non-LLM answer is the price of routing cheaply; compare it with the baseline's misses. "
               "Verbose or reasoning-model answers can fail a containment check while being right, so inspect misses by hand.", ""]
+    rp = rep.get("repeat")
+    if rp:
+        L += ["", "## Repeated requests (cache tier; same requests sent a second time, warm in-memory cache)",
+              f"- {rp['requests']} answered requests repeated; {rp['served_from_cache']} served from the cache",
+              f"- of the {rp['llm_requests_first']} that needed a model call the first time, {rp['llm_requests_cached_second']} "
+              f"needed none the second time",
+              f"- runtime LLM calls: first pass {rp['llm_calls_first']}, second pass {rp['llm_calls_second']}",
+              f"- runtime tokens: first pass {rp['tokens_first']}, second pass {rp['tokens_second']}",
+              f"- wall time: first pass {rp['wall_ms_first']} ms, second pass {rp['wall_ms_second']} ms",
+              "- A cache saves only what users repeat; the golden set was not written to be repeated, so this is the "
+              "ceiling for an all-repeats workload, not an estimate for real traffic.", ""]
     L += [f"- wall latency, summed: runtime {rep['latency_ms']['runtime_total']} ms, baseline {rep['latency_ms']['baseline_total']} ms", "",
           "## Per item", "| id | expected gate | outcome | tier | runtime LLM calls | note |", "|---|---|---|---|---|---|"]
     for r in rep["rows"]:
@@ -386,6 +461,8 @@ def main(argv: Optional[list[str]] = None, *, observe_factory=None, gateway: Opt
     ap.add_argument("--limit", type=int, help="only the first N items (a cheap trial run)")
     ap.add_argument("--yes-spend", action="store_true", help="required for a real backend: you accept billable calls")
     ap.add_argument("--workdir", type=Path, help="keep the scratch audit log here instead of a temp dir")
+    ap.add_argument("--second-pass", action="store_true",
+                    help="after the main run, send every answered request again (warm cache) to measure the cache tier")
     ap.add_argument("--json", type=Path)
     ap.add_argument("--markdown", type=Path)
     a = ap.parse_args(argv)
@@ -412,10 +489,10 @@ def main(argv: Optional[list[str]] = None, *, observe_factory=None, gateway: Opt
     set_gateway(gateway)
     try:
         if observe_factory is not None:
-            rep = run(items, observe_factory(gateway), gateway, a.baseline_alias, _progress)
+            rep = run(items, observe_factory(gateway), gateway, a.baseline_alias, _progress, a.second_pass)
         else:
             with scratch_environment(a.workdir):
-                rep = run(items, real_pipeline(gateway), gateway, a.baseline_alias, _progress)
+                rep = run(items, real_pipeline(gateway), gateway, a.baseline_alias, _progress, a.second_pass)
     finally:
         set_gateway(None)
     if a.json:
