@@ -1,4 +1,5 @@
 
+
 import dataclasses
 import json
 import sys
@@ -234,3 +235,45 @@ def test_unscored_items_do_not_appear_in_correctness():
     item = dataclasses.replace(ITEMS[0], expected_answer="")
     rep = e2e.run([item], lambda it: obs("deterministic"), mk_gateway(), "stub-large")
     assert rep["correctness"]["scored"] == 0 and "## Correctness" not in e2e.render_markdown(rep)
+
+
+def test_spend_on_unanswered_requests_is_reported_and_included_in_the_all_in_figure():
+    items = [i for i in ITEMS if i.id in ("G-007", "G-073")]
+    script = {"G-007": obs("llm_low_reasoning", calls=[llm_call(i=40, o=60)]),
+              "G-073": obs("withheld_stage6", blocked=True, calls=[llm_call(i=30, o=70), llm_call(i=30, o=70)])}
+    rep = e2e.run(items, lambda it: script[it.id], mk_gateway(tokens=(100, 100)), "stub-large")
+    t = rep["tokens"]
+    assert t["saving_vs_baseline"] == 0.5                                   # 1 - 100/200, answered only
+    assert t["unanswered_spend"] == {"requests": 1, "ids": ["G-073"], "calls": 2, "tokens": 200}
+    assert t["saving_vs_baseline_incl_unanswered"] == -0.5                  # 1 - (100 + 200)/200
+    assert "Spend on requests with no answer delivered" in e2e.render_markdown(rep)
+
+
+def test_second_pass_measures_the_cache_tier():
+    items = [i for i in ITEMS if i.id in ("G-001", "G-007", "G-011")]
+    first = {"G-001": obs("deterministic"), "G-007": obs("llm_low_reasoning", calls=[llm_call(i=40, o=60)]),
+             "G-011": obs("blocked_policy", blocked=True, confirm=True)}
+    seen = set()
+
+    def observe(it):
+        if it.id in seen:                                            # second time: warm cache
+            return obs("cache_lookup")
+        seen.add(it.id)
+        return first[it.id]
+    rep = e2e.run(items, observe, mk_gateway(tokens=(100, 100)), "stub-large", second_pass=True)
+    r = rep["repeat"]
+    assert r["requests"] == 2 and r["served_from_cache"] == 2              # the blocked request is not repeated
+    assert (r["llm_calls_first"], r["llm_calls_second"]) == (1, 0)
+    assert (r["tokens_first"], r["tokens_second"]) == (100, 0)
+    assert (r["llm_requests_first"], r["llm_requests_cached_second"]) == (1, 1)
+    assert "Repeated requests" in e2e.render_markdown(rep)
+    assert "repeat" not in e2e.run(items, lambda it: first[it.id], mk_gateway(), "stub-large")
+
+
+def test_second_pass_with_the_real_pipeline_hits_the_cache(web_layer, tmp_path):
+    gateway = e2e.RecordingGateway(gw.GatewayConfig())               # stub backend
+    items = [i for i in ITEMS if i.id in ("G-007", "G-036")]         # both LLM-rung in the stub run
+    with e2e.scratch_environment(tmp_path / "scratch"):
+        rep = e2e.run(items, e2e.real_pipeline(gateway), gateway, "stub-large", second_pass=True)
+    assert rep["repeat"]["requests"] == 2 and rep["repeat"]["served_from_cache"] == 2
+    assert rep["repeat"]["llm_calls_second"] == 0
