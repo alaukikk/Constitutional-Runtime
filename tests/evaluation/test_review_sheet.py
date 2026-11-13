@@ -1,12 +1,29 @@
 
+
 import csv
+import dataclasses
 
 import pytest
 
 from evaluation import golden_set as gs
 from evaluation import review as rv
 
-ITEMS = gs.load()
+_load_committed = gs.load
+
+
+def _as_draft():
+    """The committed set after review no longer has drafts or contested rows; rebuild the pre-review
+    state so these tests keep exercising the review workflow itself."""
+    out = []
+    for i in _load_committed():
+        tags = list(i.tags)
+        if i.id in {"G-017", "G-060", "G-061", "G-062", "G-105"} and "contested" not in tags:
+            tags.append("contested")
+        out.append(dataclasses.replace(i, labeler="claude-draft", review="draft", split="dev", tags=tuple(tags)))
+    return out
+
+
+ITEMS = _as_draft()
 
 
 def rows_for(decisions=None, **per_id):
@@ -95,7 +112,8 @@ def test_cli_refuses_to_overwrite_the_committed_set(tmp_path):
     assert rv.main(["apply", "--sheet", str(sheet), "--out", str(gs.DATA_PATH)]) == 2
 
 
-def test_cli_end_to_end(tmp_path):
+def test_cli_end_to_end(tmp_path, monkeypatch):
+    monkeypatch.setattr(gs, "load", lambda path=None: _load_committed(path) if path else ITEMS)
     sheet, out = tmp_path / "s.csv", tmp_path / "reviewed.jsonl"
     rv.main(["export", "--out", str(sheet)])
     with open(sheet, newline="", encoding="utf-8-sig") as fh:
@@ -111,7 +129,8 @@ def test_cli_end_to_end(tmp_path):
     assert [i.text for i in reviewed] == [i.text for i in ITEMS]
 
 
-def test_cli_reports_problems_and_writes_nothing(tmp_path, capsys):
+def test_cli_reports_problems_and_writes_nothing(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(gs, "load", lambda path=None: _load_committed(path) if path else ITEMS)
     sheet, out = tmp_path / "s.csv", tmp_path / "o.jsonl"
     rv.main(["export", "--out", str(sheet)])
     with open(sheet, newline="", encoding="utf-8-sig") as fh:

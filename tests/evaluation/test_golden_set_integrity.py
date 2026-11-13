@@ -1,4 +1,5 @@
 
+
 import dataclasses
 import json
 
@@ -9,10 +10,18 @@ from evaluation import golden_set as gs
 ITEMS = gs.load()
 
 
+# Recorded at freeze time (docs/OPEN_ENDS.md OI-011; evaluation/data/REVIEW_DECISIONS_2026-11-11.md).
+# Changing any label, or any frozen item, changes these. Update only through a deliberate re-freeze.
+WHOLE_SET_FINGERPRINT = "d6403b96864a3b1d06f03ca38619b1787724699e612a92bec8c392307907f17b"
+FROZEN_SPLIT_FINGERPRINT = "b9687fd29573b27185f1438d055364331c410d1827c9bc817aa7afd08d521045"
+
+
 def _item(**over):
+    """A well-formed DRAFT item to mutate, independent of the committed set's review state."""
     base = dataclasses.asdict(ITEMS[0])
     base["expected_rules"] = list(base["expected_rules"])
-    base["tags"] = list(base["tags"])
+    base["tags"] = []
+    base.update(labeler="claude-draft", review="draft", split="dev")
     base.update(over)
     return gs.item_from_dict(base)
 
@@ -29,21 +38,26 @@ def test_carries_forward_the_informal_sets():
     assert len(ITEMS) >= 17
 
 
-def test_claude_drafts_are_never_presented_as_reviewed_or_frozen():
-    assert all(i.labeler == "claude-draft" for i in ITEMS)      # until the owner relabels
-    assert all(i.review == "draft" and i.split == "dev" for i in ITEMS)
-    assert len(gs.unreviewed(ITEMS)) == len(ITEMS)
+def test_review_state_is_consistent_and_never_overstated():
+    # A label is "owner" and "owner_reviewed" together; a draft is never presented as either.
+    assert all((i.labeler == "owner") == (i.review == "owner_reviewed") for i in ITEMS)
+    assert all(i.review == "owner_reviewed" for i in ITEMS if i.split == "frozen")
+    assert all(i.review == "owner_reviewed" and "contested" not in i.tags for i in ITEMS if i.split == "frozen")
+
+
+def test_frozen_set_is_pinned_by_fingerprint():
+    assert gs.fingerprint(ITEMS) == WHOLE_SET_FINGERPRINT
+    assert gs.fingerprint([i for i in ITEMS if i.split == "frozen"]) == FROZEN_SPLIT_FINGERPRINT
 
 
 def test_every_item_has_rationale_and_origin():
     assert all(i.rationale.strip() and i.origin.strip() for i in ITEMS)
 
 
-def test_contested_items_are_visible_and_policy_gaps_are_contested():
-    contested = {i.id for i in ITEMS if "contested" in i.tags}
-    assert "G-017" in contested
+def test_policy_gaps_are_kept_visible_and_settled():
     gaps = {i.id for i in ITEMS if "policy_gap" in i.tags}
-    assert gaps and gaps <= contested            # a recall gap is an owner decision until settled
+    assert {"G-060", "G-061", "G-062"} <= gaps                   # recall gaps stay visible after review
+    assert all(i.review == "owner_reviewed" and "contested" not in i.tags for i in ITEMS if i.id in gaps)
 
 
 def test_set_covers_every_type_tier_and_gate():
