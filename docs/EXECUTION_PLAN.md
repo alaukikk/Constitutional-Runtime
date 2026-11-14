@@ -218,7 +218,7 @@ Real LLM integration is no longer deferred. Built on `main`:
 - `evaluation/` — `golden_set.py` with `data/golden_v1.jsonl` (106 items; all labelled `claude-draft`, review `draft`, split `dev`; **not owner-reviewed and not frozen**), `offline_runner.py`, `e2e_runner.py` (the real pipeline against an always-call-the-LLM baseline; it refuses real spend without `--yes-spend`, and the baseline model is the owner's choice with no default), and `review.py` (owner review sheet).
 - `cost/breakeven.py` — implemented. It takes one real and one stub e2e report and reports latency, tokens and a RAG upper bound. It produces no energy or dollar figures (OI-005).
 
-**First diagnostic results.** One owner-run pass (Groq; baseline alias `stub-large` = `openai/gpt-oss-120b`; golden-set fingerprint `ea270e62ae8276563e36b90e7d9edb8336bd99f842edead237abfefa89a7b99a`), plus one stub-backend pass. These are **diagnostic only**: draft labels, a hand-written set, a single run, no cache warm-up. They are not evidence about real traffic.
+**First diagnostic results.** One owner-run pass (Groq; baseline alias `stub-large` (now named `tier-large`) = `openai/gpt-oss-120b`; golden-set fingerprint `ea270e62ae8276563e36b90e7d9edb8336bd99f842edead237abfefa89a7b99a`), plus one stub-backend pass. These are **diagnostic only**: draft labels, a hand-written set, a single run, no cache warm-up. They are not evidence about real traffic.
 
 | Measure | Result |
 |---|---|
@@ -238,12 +238,27 @@ Wall-latency note: the raw real-run report sums runtime wall time to 279.2 s bec
 
 **What this supports, and what it does not.** On this set the runtime's own overhead is negligible next to a model call, and skipping model calls gives a real but small token saving (8%) because the requests answered without a model are short (about 141 tokens each against 309 on average). It does **not** support a claim of "considerable savings"; OI-097 records how that claim has to be defined and measured before it is made.
 
-### Remaining Sprint 7–8 sequence
+### Sprint 7–8 close-out status (2026-11-13)
 
-1. **Owner review and freeze of the golden set** (OI-011, must-fix): resolve the contested items (G-017 and the `policy_gap` items), then freeze with the fingerprint recorded **before** any threshold is tuned.
-2. **Define the savings claim, the workload and the baseline** (OI-097), and plan coverage expansion against the existing `TAXONOMY.MD` categories (OI-098). Owner direction (2026-10-29): extend the pipeline step by step so that more request types are handled by non-AI methods, accepting extra latency in exchange for fewer AI calls.
-3. **Re-run the end-to-end and breakeven measurements on the frozen split**, add a repeated-request run so the cache tier is measured (the first runs used a cold cache), and keep calls avoided and tokens saved as separate figures.
-4. Original steps 3–5: full red-team, the five-dimension comparative evaluation, and shadow-mode validation.
+The backend prototype reached the end of the originally decided sequence in scaled-down form. Code was frozen after the red-team rule fix. Detailed numbers and the draft savings claim are in `docs/notes/results_draft_2026-11-13.md`.
+
+| Step | Status | Form delivered | Gap |
+|---|---|---|---|
+| 1. Golden set review and freeze | Done (OI-011) | 106 items, 46 frozen / 60 dev, fingerprints pinned in tests | Contested rows decided by Claude under owner delegation; owner to skim. Some frozen items are contaminated (G-004 to G-006, G-018 to G-023). |
+| 2. Breakeven on the frozen set | Done | Three real frozen runs with `--second-pass` plus breakeven reports | One stub run supplies the overhead figures; 20b vs 120b model-choice confound (OI-093). |
+| 3. Red-team | Partial (OI-101) | Self red-team, 40 prompts, then rule fixes | No fresh held-out set yet (classmate prompts pending); no full-team session; indirect injection observe-only. |
+| 4. Five-dimension comparison | Partial | Calls, tokens, latency, correctness and gate safety measured on the frozen split | Human agency by proxy only (items tagged `human_agency`, escalation behaviour); no user study. |
+| 5. Shadow-mode validation | Partial (OI-100) | Replay of 500 public WildChat prompts, counts only | Not live shadow traffic; WildChat is not the intended user population. |
+
+**Frozen-split result, three real runs (46 items, identical in each):** 9 of 29 answerable requests answered without a model call (31.0%; 24.1% net of two wasted calls on G-073), 20 answered by the smaller model, 12 blocked, 5 held for confirmation, 0 errors. Gate agreement 41/46. Tokens: all-in 34.9% to 40.6% lower than the baseline, of which routing 14.1% to 14.4% and model choice 20.7% to 26.2% (OI-093). Overhead median about 1.3 ms. The 10 items with expected answers were all correct for runtime and baseline (OI-091). The shadow replay found far lower non-LLM coverage on real prompts than the hand-picked set (OI-100), so these figures are not claimed to transfer. No energy or dollar claim is made (OI-005).
+
+**Backend items added in this stretch:** unit-conversion and fact-table handlers inside the deterministic tier (OI-098, OI-103); `evaluation/shadow_replay.py`, `evaluation/redteam_runner.py` and `evaluation/data/redteam_v1.jsonl`; unanswered-spend accounting and `--second-pass` in `evaluation/e2e_runner.py`; red-team rule fixes to `config/constitution.yaml` and the Stage 0 patterns (governed change, OI-101); model aliases renamed from `stub-*` to `tier-*` (OI-093).
+
+### Remaining before and after the semester evaluation
+
+1. Owner: get classmate attack prompts and score them as the held-out set (OI-101); verify the fact tables (OI-103); accept or edit the savings-claim wording (OI-097); skim the delegated review decisions (OI-011).
+2. Investigate G-073 (OI-102).
+3. Next semester: label the shadow `unknown` bucket against `TAXONOMY.MD` and plan live shadow mode (OI-100); a held-out independent question set; the reference-lookup handler (BM25 over a local fingerprinted corpus with abstention, deferred); the gateway decision (OI-010); the baseline definition (OI-093).
 
 ### Provisional defaults in force
 
